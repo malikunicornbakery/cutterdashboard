@@ -26,7 +26,10 @@ interface VideoRow {
   created_at: string;
   proof_url: string | null;
   proof_status: string | null;
-  proof_submitted_at?: string | null;
+  proof_uploaded_at?: string | null;
+  proof_rejection_reason?: string | null;
+  proof_cutter_note?: string | null;
+  proof_requested_at?: string | null;
   episode_id: string | null;
   is_flagged?: boolean;
 }
@@ -42,14 +45,15 @@ type ClipStatus =
 
 function getClipStatus(v: VideoRow): ClipStatus {
   if (v.is_flagged) return "rejected";
-  if (v.proof_status === "submitted") return "under_review";
+  if (v.proof_status === "proof_submitted" || v.proof_status === "proof_under_review") return "under_review";
   if (
     v.discrepancy_status === "critical_difference" ||
-    v.discrepancy_status === "suspicious_difference"
+    v.discrepancy_status === "suspicious_difference" ||
+    v.proof_status === "proof_requested"
   ) {
-    if (!v.proof_url) return "manual_proof_required";
+    if (!v.proof_url || v.proof_status === "proof_requested") return "manual_proof_required";
   }
-  if (v.verification_status === "verified") return "verified";
+  if (v.verification_status === "verified" || v.proof_status === "proof_approved") return "verified";
   if (v.verification_status === "partially_verified") return "partially_verified";
   if (!v.last_scraped_at) return "submitted";
   return "syncing";
@@ -245,7 +249,10 @@ function ProofCell({ video, onReload }: { video: VideoRow; onReload: () => void 
     onReload();
   }
 
-  if (!video.proof_status || video.proof_status === "none") {
+  const status = video.proof_status;
+
+  // No proof / reset state
+  if (!status || status === "no_proof_needed" || status === "none") {
     return (
       <label className="flex cursor-pointer items-center gap-1.5 rounded-lg border border-border bg-muted/50 px-2.5 py-1 text-xs text-muted-foreground hover:border-primary/30 hover:text-foreground hover:bg-accent transition-all">
         {uploading ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
@@ -254,11 +261,29 @@ function ProofCell({ video, onReload }: { video: VideoRow; onReload: () => void 
       </label>
     );
   }
-  if (video.proof_status === "pending") {
+
+  // Proof was requested by ops
+  if (status === "proof_requested") {
+    return (
+      <div className="flex flex-col gap-1.5">
+        <span className="rounded-md border border-orange-500/20 bg-orange-500/10 px-1.5 py-0.5 text-xs text-orange-400 font-medium">
+          ⚠ Beleg angefordert
+        </span>
+        <label className="flex cursor-pointer items-center gap-1.5 rounded-lg border border-primary/30 bg-primary/10 px-2.5 py-1 text-xs text-primary hover:bg-primary/20 transition-colors">
+          {uploading ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
+          Jetzt hochladen
+          <input type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" onChange={handleFileChange} disabled={uploading} />
+        </label>
+      </div>
+    );
+  }
+
+  // Submitted — under review
+  if (status === "proof_submitted" || status === "proof_under_review" || status === "pending") {
     return (
       <div className="flex items-center gap-1.5">
         <span className="rounded-md border border-amber-500/20 bg-amber-500/10 px-1.5 py-0.5 text-xs text-amber-400">
-          Ausstehend
+          In Prüfung
         </span>
         <button onClick={handleDelete} disabled={deleting} className="text-muted-foreground hover:text-destructive transition-colors" title="Entfernen">
           {deleting ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <X className="h-3.5 w-3.5" />}
@@ -266,18 +291,34 @@ function ProofCell({ video, onReload }: { video: VideoRow; onReload: () => void 
       </div>
     );
   }
-  if (video.proof_status === "approved") {
-    return <span className="rounded-md border border-emerald-500/20 bg-emerald-500/10 px-1.5 py-0.5 text-xs text-emerald-400">✓ Genehmigt</span>;
-  }
-  if (video.proof_status === "rejected") {
+
+  // Approved
+  if (status === "proof_approved" || status === "approved") {
     return (
-      <label className="flex cursor-pointer items-center gap-1.5 rounded-lg bg-red-500/10 border border-red-500/20 px-2 py-1 text-xs text-red-400 hover:bg-red-500/20 transition-colors">
-        {uploading ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
-        Neu hochladen
-        <input type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" onChange={handleFileChange} disabled={uploading} />
-      </label>
+      <span className="rounded-md border border-emerald-500/20 bg-emerald-500/10 px-1.5 py-0.5 text-xs text-emerald-400">
+        ✓ Genehmigt
+      </span>
     );
   }
+
+  // Rejected — show reason + allow re-upload
+  if (status === "proof_rejected" || status === "rejected") {
+    return (
+      <div className="flex flex-col gap-1.5">
+        {video.proof_rejection_reason && (
+          <p className="text-xs text-red-400 max-w-[160px] truncate" title={video.proof_rejection_reason}>
+            ✕ {video.proof_rejection_reason}
+          </p>
+        )}
+        <label className="flex cursor-pointer items-center gap-1.5 rounded-lg bg-red-500/10 border border-red-500/20 px-2 py-1 text-xs text-red-400 hover:bg-red-500/20 transition-colors">
+          {uploading ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
+          Neu hochladen
+          <input type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" onChange={handleFileChange} disabled={uploading} />
+        </label>
+      </div>
+    );
+  }
+
   return null;
 }
 

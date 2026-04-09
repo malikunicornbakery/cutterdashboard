@@ -16,16 +16,24 @@ export async function POST(
 
   // Verify video belongs to auth user
   const videoResult = await db.execute({
-    sql: `SELECT id, cutter_id FROM cutter_videos WHERE id = ? AND cutter_id = ?`,
+    sql: `SELECT id, cutter_id, proof_status FROM cutter_videos WHERE id = ? AND cutter_id = ?`,
     args: [videoId, auth.id],
   });
 
-  if (!videoResult.rows[0]) {
+  const video = videoResult.rows[0] as unknown as { id: string; cutter_id: string; proof_status: string | null } | undefined;
+
+  if (!video) {
     return NextResponse.json({ error: 'Video nicht gefunden' }, { status: 404 });
+  }
+
+  // Don't allow re-upload if already approved
+  if (video.proof_status === 'proof_approved') {
+    return NextResponse.json({ error: 'Beleg wurde bereits genehmigt' }, { status: 400 });
   }
 
   const formData = await request.formData();
   const file = formData.get('file') as File | null;
+  const note = (formData.get('note') as string | null)?.trim() ?? null;
 
   if (!file) {
     return NextResponse.json({ error: 'Keine Datei hochgeladen' }, { status: 400 });
@@ -50,8 +58,17 @@ export async function POST(
   const blob = await put(`proofs/${videoId}/${Date.now()}.${ext}`, file, { access: 'public' });
 
   await db.execute({
-    sql: `UPDATE cutter_videos SET proof_url = ?, proof_uploaded_at = datetime('now'), proof_status = 'pending' WHERE id = ?`,
-    args: [blob.url, videoId],
+    sql: `UPDATE cutter_videos
+          SET proof_url = ?,
+              proof_uploaded_at = datetime('now'),
+              proof_status = 'proof_submitted',
+              proof_cutter_note = ?,
+              proof_rejection_reason = NULL,
+              proof_reviewer_id = NULL,
+              proof_reviewer_name = NULL,
+              proof_reviewed_at = NULL
+          WHERE id = ?`,
+    args: [blob.url, note, videoId],
   });
 
   await recalculateReliabilityScore(db, auth.id);
@@ -71,14 +88,24 @@ export async function DELETE(
 
   // Verify video belongs to auth user
   const videoResult = await db.execute({
-    sql: `SELECT id, cutter_id, proof_url FROM cutter_videos WHERE id = ? AND cutter_id = ?`,
+    sql: `SELECT id, cutter_id, proof_url, proof_status FROM cutter_videos WHERE id = ? AND cutter_id = ?`,
     args: [videoId, auth.id],
   });
 
-  const video = videoResult.rows[0] as unknown as { id: string; cutter_id: string; proof_url: string | null } | undefined;
+  const video = videoResult.rows[0] as unknown as {
+    id: string;
+    cutter_id: string;
+    proof_url: string | null;
+    proof_status: string | null;
+  } | undefined;
 
   if (!video) {
     return NextResponse.json({ error: 'Video nicht gefunden' }, { status: 404 });
+  }
+
+  // Don't allow delete if approved or under review
+  if (video.proof_status === 'proof_approved') {
+    return NextResponse.json({ error: 'Genehmigter Beleg kann nicht entfernt werden' }, { status: 400 });
   }
 
   if (video.proof_url) {
@@ -90,7 +117,13 @@ export async function DELETE(
   }
 
   await db.execute({
-    sql: `UPDATE cutter_videos SET proof_url = NULL, proof_uploaded_at = NULL, proof_status = 'none' WHERE id = ?`,
+    sql: `UPDATE cutter_videos
+          SET proof_url = NULL,
+              proof_uploaded_at = NULL,
+              proof_status = 'no_proof_needed',
+              proof_cutter_note = NULL,
+              proof_rejection_reason = NULL
+          WHERE id = ?`,
     args: [videoId],
   });
 
