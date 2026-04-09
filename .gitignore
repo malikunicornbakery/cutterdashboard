@@ -1,0 +1,39 @@
+# Dependencies
+node_modules/
+
+# Next.js build output
+.next/
+out/
+
+# Environment variables — NIEMALS committen!
+.env
+.env.local
+.env.*.local
+.env.production
+
+# TypeScript build info
+*.tsbuildinfo
+
+# Local data / uploads
+data/
+
+# macOS
+.DS_Store
+Icon
+
+# Vercel
+.vercel
+
+# Duplicate files (accidental copies)
+*\ 2.ts
+*\ 2.json
+
+# macOS Icon files (alle)
+Icon?
+**/Icon?
+
+# Claude Code local config
+.claude/
+
+# Temp env files
+*.tmp
