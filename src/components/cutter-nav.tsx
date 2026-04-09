@@ -16,6 +16,7 @@ import {
   Film,
   ChevronDown,
   BarChart2,
+  List,
 } from "lucide-react";
 
 interface CutterSession {
@@ -125,13 +126,27 @@ export function CutterNav() {
             <Link
               href="/ops"
               className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium whitespace-nowrap transition-all duration-150 ${
-                pathname.startsWith("/ops")
+                pathname === "/ops" || (pathname.startsWith("/ops") && !pathname.startsWith("/ops/clips"))
                   ? "bg-primary/15 text-primary"
                   : "text-muted-foreground hover:bg-accent/60 hover:text-foreground"
               }`}
             >
               <ShieldCheck className="h-4 w-4 shrink-0" />
               <span className="hidden md:block">Ops</span>
+            </Link>
+          )}
+
+          {(session.role === "super_admin" || session.role === "ops_manager") && (
+            <Link
+              href="/ops/clips"
+              className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium whitespace-nowrap transition-all duration-150 ${
+                pathname.startsWith("/ops/clips")
+                  ? "bg-primary/15 text-primary"
+                  : "text-muted-foreground hover:bg-accent/60 hover:text-foreground"
+              }`}
+            >
+              <List className="h-4 w-4 shrink-0" />
+              <span className="hidden md:block">Clips</span>
             </Link>
           )}
 
