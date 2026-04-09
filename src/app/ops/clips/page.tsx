@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { CutterNav } from "@/components/cutter-nav";
@@ -122,6 +122,14 @@ function SkeletonRow() {
 }
 
 export default function ClipsPage() {
+  return (
+    <Suspense>
+      <ClipsPageInner />
+    </Suspense>
+  );
+}
+
+function ClipsPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
