@@ -1,4 +1,5 @@
 import type { DbClient } from '@/lib/db';
+import { parseClipUrl } from '@/lib/ingest/parser';
 
 export interface ParsedUrl {
   platform: 'youtube' | 'tiktok' | 'instagram' | 'facebook';
@@ -8,101 +9,16 @@ export interface ParsedUrl {
 
 /**
  * Parse a social media video URL into platform, external ID, and account handle.
+ * Delegates to the canonical ingest parser for consistent behavior.
  */
 export function parsePlatformUrl(url: string): ParsedUrl | null {
-  try {
-    // Normalize: remove tracking params, trim whitespace
-    const cleaned = url.trim();
-    const u = new URL(cleaned.startsWith('http') ? cleaned : `https://${cleaned}`);
-    const host = u.hostname.replace(/^www\./, '').replace(/^m\./, '');
-
-    // YouTube: youtube.com/watch?v=X, youtu.be/X, youtube.com/shorts/X
-    if (host === 'youtube.com' || host === 'youtu.be') {
-      let videoId: string | null = null;
-
-      if (host === 'youtu.be') {
-        videoId = u.pathname.slice(1).split('/')[0];
-      } else if (u.pathname.startsWith('/watch')) {
-        videoId = u.searchParams.get('v');
-      } else if (u.pathname.startsWith('/shorts/')) {
-        videoId = u.pathname.split('/shorts/')[1]?.split('/')[0];
-      }
-
-      if (videoId) {
-        return { platform: 'youtube', externalId: videoId, accountHandle: null };
-      }
-    }
-
-    // TikTok: tiktok.com/@handle/video/ID
-    if (host === 'tiktok.com' || host.endsWith('.tiktok.com')) {
-      const match = u.pathname.match(/@([^/]+)\/video\/(\d+)/);
-      if (match) {
-        return {
-          platform: 'tiktok',
-          externalId: match[2],
-          accountHandle: match[1],
-        };
-      }
-      // Short URL: vm.tiktok.com/XXX — can't extract ID without following redirect
-      // Try tiktok.com/t/XXX format
-      const shortMatch = u.pathname.match(/\/(?:t\/)?(\w+)/);
-      if (host === 'vm.tiktok.com' && shortMatch) {
-        return {
-          platform: 'tiktok',
-          externalId: shortMatch[1],
-          accountHandle: null,
-        };
-      }
-    }
-
-    // Instagram: instagram.com/reel/CODE/, instagram.com/p/CODE/
-    if (host === 'instagram.com') {
-      const match = u.pathname.match(/\/(reel|p)\/([A-Za-z0-9_-]+)/);
-      if (match) {
-        return {
-          platform: 'instagram',
-          externalId: match[2],
-          accountHandle: null,
-        };
-      }
-    }
-
-    // Facebook: facebook.com/reel/ID, facebook.com/watch/?v=ID, fb.watch/X
-    if (host === 'facebook.com' || host === 'fb.watch') {
-      if (host === 'fb.watch') {
-        const fbId = u.pathname.slice(1).split('/')[0];
-        if (fbId) {
-          return { platform: 'facebook', externalId: fbId, accountHandle: null };
-        }
-      }
-
-      // facebook.com/share/r/CODE (share short-link)
-      const shareMatch = u.pathname.match(/\/share\/r\/([A-Za-z0-9_-]+)/);
-      if (shareMatch) {
-        return { platform: 'facebook', externalId: shareMatch[1], accountHandle: null };
-      }
-
-      const reelMatch = u.pathname.match(/\/reel\/(\d+)/);
-      if (reelMatch) {
-        return { platform: 'facebook', externalId: reelMatch[1], accountHandle: null };
-      }
-
-      const watchV = u.searchParams.get('v');
-      if (u.pathname.startsWith('/watch') && watchV) {
-        return { platform: 'facebook', externalId: watchV, accountHandle: null };
-      }
-
-      // facebook.com/username/videos/ID
-      const videoMatch = u.pathname.match(/\/videos\/(\d+)/);
-      if (videoMatch) {
-        return { platform: 'facebook', externalId: videoMatch[1], accountHandle: null };
-      }
-    }
-
-    return null;
-  } catch {
-    return null;
-  }
+  const result = parseClipUrl(url);
+  if (!result.ok) return null;
+  return {
+    platform:      result.platform,
+    externalId:    result.videoId,
+    accountHandle: result.accountHandle,
+  };
 }
 
 /**
