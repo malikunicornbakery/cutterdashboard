@@ -3,6 +3,7 @@ import { put, del } from '@vercel/blob';
 import { requireCutterAuth, isCutter } from '@/lib/cutter/middleware';
 import { ensureDb } from '@/lib/db';
 import { recalculateReliabilityScore } from '@/lib/reliability';
+import { createOpsNotification } from '@/lib/notifications';
 
 export async function POST(
   request: NextRequest,
@@ -72,6 +73,19 @@ export async function POST(
   });
 
   await recalculateReliabilityScore(db, auth.id);
+
+  // Notify ops that a proof needs review
+  const videoMeta = await db.execute({ sql: `SELECT title FROM cutter_videos WHERE id = ?`, args: [videoId] });
+  const videoTitle = (videoMeta.rows[0] as Record<string, unknown>)?.title as string | null ?? null;
+  await createOpsNotification(db, {
+    type: 'proof_submitted',
+    title: 'Neuer Beleg eingereicht',
+    body: `${auth.name} hat einen Screenshot für "${videoTitle ?? 'Clip'}" hochgeladen.`,
+    actionUrl: '/ops/verification',
+    entityType: 'video',
+    entityId: videoId,
+    dedupWindowHours: 12,
+  });
 
   return NextResponse.json({ proof_url: blob.url });
 }

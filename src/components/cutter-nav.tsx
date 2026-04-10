@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { NotificationBell } from "@/components/notification-bell";
 import {
   LayoutDashboard,
   Video,
@@ -179,6 +180,9 @@ export function CutterNav() {
             </Link>
           )}
         </nav>
+
+        {/* Notification Bell */}
+        <NotificationBell />
 
         {/* User menu */}
         <div className="relative shrink-0" onClick={(e) => e.stopPropagation()}>

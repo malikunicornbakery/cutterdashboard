@@ -5,6 +5,7 @@ import { ensureDb } from '@/lib/db';
 import { parsePlatformUrl } from '@/lib/cutter/helpers';
 import { scrapeVideoViews } from '@/lib/cutter/scraper';
 import { writeAuditLog } from '@/lib/audit';
+import { createNotification } from '@/lib/notifications';
 
 export async function GET(request: NextRequest) {
   const auth = await requireCutterAuth(request);
@@ -106,6 +107,18 @@ export async function POST(request: NextRequest) {
     });
 
     accepted.push({ id: videoId, url, platform: parsed.platform });
+
+    // Notification: clip submitted
+    await createNotification(db, {
+      recipientId: auth.id,
+      type: 'clip_submitted',
+      title: 'Clip eingereicht',
+      body: `Dein ${parsed.platform}-Clip wurde erfolgreich eingereicht. Views werden automatisch getrackt.`,
+      actionUrl: '/videos',
+      entityType: 'video',
+      entityId: videoId,
+      dedupWindowHours: 1,
+    });
 
     // Audit log
     await writeAuditLog(db, {

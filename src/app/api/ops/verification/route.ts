@@ -3,6 +3,7 @@ import { requireOpsAccess, isCutter } from '@/lib/cutter/middleware';
 import { ensureDb } from '@/lib/db';
 import { recalculateReliabilityScore } from '@/lib/reliability';
 import { writeAuditLog } from '@/lib/audit';
+import { createNotification } from '@/lib/notifications';
 
 export async function GET(request: NextRequest) {
   const auth = await requireOpsAccess(request);
@@ -46,10 +47,14 @@ export async function PATCH(request: NextRequest) {
     args: [videoId],
   });
 
-  const video = videoResult.rows[0] as unknown as { id: string; cutter_id: string } | undefined;
+  const video = videoResult.rows[0] as unknown as { id: string; cutter_id: string; title?: string } | undefined;
   if (!video) {
     return NextResponse.json({ error: 'Video nicht gefunden' }, { status: 404 });
   }
+
+  // Fetch title for notifications
+  const videoTitleResult = await db.execute({ sql: `SELECT title FROM cutter_videos WHERE id = ?`, args: [videoId] });
+  const videoTitle = (videoTitleResult.rows[0] as Record<string, unknown>)?.title as string | null ?? null;
 
   const now = new Date().toISOString();
 
@@ -75,6 +80,17 @@ export async function PATCH(request: NextRequest) {
       meta: { cutter_id: video.cutter_id, notes: notes ?? null },
     });
 
+    await createNotification(db, {
+      recipientId: video.cutter_id,
+      type: 'proof_approved',
+      title: 'Beleg genehmigt ✓',
+      body: `Dein Beleg für "${videoTitle ?? 'Clip'}" wurde genehmigt. Der Clip gilt als verifiziert.`,
+      actionUrl: '/videos',
+      entityType: 'video',
+      entityId: videoId,
+      dedupWindowHours: 48,
+    });
+
   } else if (action === 'reject') {
     await db.execute({
       sql: `UPDATE cutter_videos
@@ -97,6 +113,19 @@ export async function PATCH(request: NextRequest) {
       meta: { cutter_id: video.cutter_id, reason: rejectionReason ?? null, notes: notes ?? null },
     });
 
+    await createNotification(db, {
+      recipientId: video.cutter_id,
+      type: 'proof_rejected',
+      title: 'Beleg abgelehnt',
+      body: rejectionReason
+        ? `Dein Beleg für "${videoTitle ?? 'Clip'}" wurde abgelehnt: ${rejectionReason}. Bitte lade einen neuen Screenshot hoch.`
+        : `Dein Beleg für "${videoTitle ?? 'Clip'}" wurde abgelehnt. Bitte lade einen neuen Screenshot hoch.`,
+      actionUrl: '/videos',
+      entityType: 'video',
+      entityId: videoId,
+      dedupWindowHours: 12,
+    });
+
   } else if (action === 'request_proof') {
     await db.execute({
       sql: `UPDATE cutter_videos
@@ -115,6 +144,19 @@ export async function PATCH(request: NextRequest) {
       entityType: 'video',
       entityId: videoId,
       meta: { cutter_id: video.cutter_id, notes: notes ?? null },
+    });
+
+    await createNotification(db, {
+      recipientId: video.cutter_id,
+      type: 'proof_required',
+      title: 'Beleg angefordert',
+      body: notes
+        ? `Für "${videoTitle ?? 'Clip'}" wird ein Screenshot benötigt: ${notes}`
+        : `Für "${videoTitle ?? 'Clip'}" wird ein Screenshot der View-Anzahl benötigt.`,
+      actionUrl: '/videos',
+      entityType: 'video',
+      entityId: videoId,
+      dedupWindowHours: 24,
     });
   }
 
