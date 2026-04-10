@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
 import { CutterNav } from "@/components/cutter-nav";
+import { ClipNotesPanel } from "@/components/clip-notes-panel";
 import {
   ArrowLeft,
   Flag,
@@ -11,7 +12,6 @@ import {
   CheckCircle2,
   ShieldCheck,
   FileText,
-  MessageSquare,
   RefreshCw,
   ExternalLink,
 } from "lucide-react";
@@ -136,14 +136,18 @@ function formatDateTime(d: string | null): string {
 }
 
 const ACTION_LABELS: Record<string, string> = {
-  "video.mark_reviewed": "Als geprüft markiert",
-  "video.flag": "Geflaggt",
-  "video.unflag": "Entflaggt",
-  "video.approve_proof": "Beleg genehmigt",
-  "video.reject_proof": "Beleg abgelehnt",
-  "video.request_proof": "Beleg angefordert",
-  "video.add_note": "Notiz hinzugefügt",
-  "video.set_verified": "Als verifiziert gesetzt",
+  "video.mark_reviewed":  "Als geprüft markiert",
+  "video.flag":           "Geflaggt",
+  "video.unflag":         "Entflaggt",
+  "video.approve_proof":  "Beleg genehmigt",
+  "video.reject_proof":   "Beleg abgelehnt",
+  "video.request_proof":  "Beleg angefordert",
+  "video.add_note":       "Notiz hinzugefügt",
+  "video.set_verified":   "Als verifiziert gesetzt",
+  "proof_approve":        "Beleg genehmigt",
+  "proof_reject":         "Beleg abgelehnt",
+  "note_add":             "Cutter-sichtbare Notiz hinzugefügt",
+  "note_delete":          "Notiz gelöscht",
 };
 
 export default function ClipDetailPage() {
@@ -154,7 +158,6 @@ export default function ClipDetailPage() {
   const [data, setData] = useState<ClipDetailResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
-  const [noteText, setNoteText] = useState("");
   const [flagReason, setFlagReason] = useState("");
   const [rejectReason, setRejectReason] = useState("");
   const [showFlagInput, setShowFlagInput] = useState(false);
@@ -168,7 +171,6 @@ export default function ClipDetailPage() {
     if (res.status === 404) { router.push("/ops/clips"); return; }
     const json = await res.json();
     setData(json);
-    if (json.video?.review_notes) setNoteText(json.video.review_notes);
     setLoading(false);
   }, [id, router]);
 
@@ -417,30 +419,10 @@ export default function ClipDetailPage() {
             </div>
           )}
 
-          {/* Note input */}
-          <div className="flex gap-2">
-            <input
-              value={noteText}
-              onChange={e => setNoteText(e.target.value)}
-              placeholder="Notiz hinzufügen…"
-              className="h-9 flex-1 rounded-lg border border-input bg-background px-3 text-sm outline-none focus:border-primary"
-            />
-            <button
-              onClick={() => doAction("add_note", { note: noteText })}
-              disabled={!noteText.trim() || actionLoading !== null}
-              className="h-9 flex items-center gap-1.5 rounded-lg border border-border px-3 text-sm text-muted-foreground hover:bg-accent disabled:opacity-50 transition-colors"
-            >
-              <MessageSquare className="h-4 w-4" />
-              Notiz speichern
-            </button>
-          </div>
-
-          {video.review_notes && (
-            <div className="rounded-lg border border-border bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
-              <span className="font-medium text-foreground/70">Aktuelle Notiz:</span> {video.review_notes}
-            </div>
-          )}
         </div>
+
+        {/* Internal notes panel */}
+        <ClipNotesPanel videoId={id} />
 
         {/* Proof section */}
         {video.proof_url && (
