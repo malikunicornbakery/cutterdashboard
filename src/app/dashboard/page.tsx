@@ -84,17 +84,19 @@ function DashboardSkeleton() {
           <div className="skeleton h-4 w-40" />
         </div>
         {/* Stat + reliability skeleton */}
-        <div className="mb-8 grid gap-4 lg:grid-cols-5">
-          <div className="lg:col-span-3 grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="mb-6 grid gap-4 lg:grid-cols-3">
+          <div className="lg:col-span-2 grid grid-cols-2 sm:grid-cols-4 gap-3">
             {[...Array(4)].map((_, i) => (
               <div key={i} className="rounded-xl border border-border bg-card p-3">
-                <div className="skeleton h-4 w-4 mb-2.5" />
-                <div className="skeleton h-6 w-14 mb-1" />
-                <div className="skeleton h-3 w-20" />
+                <div className="flex items-center gap-1.5 mb-2.5">
+                  <div className="skeleton h-3 w-3" />
+                  <div className="skeleton h-3 w-16" />
+                </div>
+                <div className="skeleton h-5 w-14" />
               </div>
             ))}
           </div>
-          <div className="lg:col-span-2 rounded-xl border border-border bg-card p-5 h-40" />
+          <div className="lg:col-span-1 rounded-xl border border-border bg-card p-4 h-36" />
         </div>
         {/* Table skeleton */}
         <div className="rounded-xl border border-border bg-card">
@@ -266,43 +268,21 @@ function ReliabilityWidget({ score, trustScore, performanceScore }: {
 
 // ── Stat Card ─────────────────────────────────────────────────
 function StatCard({
-  icon, label, value, sub, highlight, href,
+  icon, label, value,
 }: {
   icon: React.ReactNode;
   label: string;
   value: string;
-  sub?: string;
-  highlight?: boolean;
-  href?: string;
 }) {
-  const inner = (
-    <div className={`relative rounded-xl border p-3 h-full transition-all duration-200 card-hover ${
-      highlight
-        ? "border-primary/30 bg-primary/8"
-        : "border-border bg-card"
-    }`}>
-      {highlight && (
-        <div className="absolute inset-x-0 top-0 h-0.5 rounded-t-xl bg-primary opacity-60" />
-      )}
-      <div className={`mb-1.5 ${highlight ? "text-primary" : "text-muted-foreground"}`}>
-        {icon}
+  return (
+    <div className="rounded-xl border border-border bg-card p-3 flex flex-col gap-2">
+      <div className="flex items-center gap-1.5">
+        <span className="text-muted-foreground/60">{icon}</span>
+        <span className="text-xs text-muted-foreground leading-none">{label}</span>
       </div>
-      <p className={`text-lg font-bold tabular-nums ${highlight ? "text-primary" : ""}`}>
-        {value}
-      </p>
-      {sub && <p className="text-xs font-medium text-primary mt-0.5">{sub}</p>}
-      <p className="mt-0.5 text-xs text-muted-foreground">{label}</p>
+      <p className="text-xl font-bold tabular-nums leading-none">{value}</p>
     </div>
   );
-
-  if (href) {
-    return (
-      <Link href={href} className="block h-full">
-        {inner}
-      </Link>
-    );
-  }
-  return inner;
 }
 
 // ── Main Page ─────────────────────────────────────────────────
@@ -344,30 +324,30 @@ export default function CutterDashboard() {
       <CutterNav />
       <main className="mx-auto max-w-6xl p-6">
 
-        {/* Greeting */}
-        <div className="mb-7 flex items-start justify-between gap-4">
+        {/* Row 1 — Greeting + Actions */}
+        <div className="mb-6 flex items-center justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-black tracking-tight">
+            <h1 className="text-2xl font-bold tracking-tight">
               {getGreeting()}{sessionName ? `, ${sessionName}` : ""}
             </h1>
-            <p className="mt-0.5 text-sm text-muted-foreground">
+            <p className="mt-0.5 text-xs text-muted-foreground">
               {new Date().toLocaleDateString("de-DE", { weekday: "long", day: "numeric", month: "long" })}
             </p>
           </div>
-          <div className="flex gap-2 shrink-0">
+          <div className="flex items-center gap-2 shrink-0">
             <Link
               href="/videos/submit"
-              className="btn-glow flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 transition-opacity"
+              className="flex items-center gap-1.5 rounded-lg bg-primary px-3.5 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 transition-opacity"
             >
-              <Plus className="h-4 w-4" />
+              <Plus className="h-3.5 w-3.5" />
               <span className="hidden sm:block">Video einreichen</span>
               <span className="sm:hidden">Neu</span>
             </Link>
             <Link
               href="/invoices"
-              className="flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-2 text-sm font-medium hover:bg-accent transition-colors"
+              className="flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
             >
-              <Receipt className="h-4 w-4" />
+              <Receipt className="h-3.5 w-3.5" />
               <span className="hidden sm:block">Rechnungen</span>
             </Link>
           </div>
@@ -380,7 +360,7 @@ export default function CutterDashboard() {
 
         {/* Unbilled callout — only if there are unbilled views */}
         {stats && stats.unbilledViews > 0 && (
-          <div className="mb-6 flex items-center justify-between rounded-xl border border-primary/25 bg-primary/8 px-4 py-3">
+          <div className="mb-4 flex items-center justify-between rounded-xl border border-primary/25 bg-primary/8 px-4 py-3">
             <div className="flex items-center gap-3">
               <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/20">
                 <Clock className="h-4 w-4 text-primary" />
@@ -404,46 +384,30 @@ export default function CutterDashboard() {
           </div>
         )}
 
-        {/* KPI + Reliability two-column layout */}
+        {/* Row 2 — KPIs (8/12) + Reliability (4/12) */}
         {stats && (
-          <div className="mb-7 grid gap-4 lg:grid-cols-5">
-            {/* 4 compact KPI cards */}
-            <div className="lg:col-span-3 grid grid-cols-2 sm:grid-cols-4 gap-3 content-start">
-              <StatCard
-                icon={<Video className="h-4 w-4" />}
-                label="Videos"
-                value={formatNum(stats.videoCount)}
-              />
-              <StatCard
-                icon={<Eye className="h-4 w-4" />}
-                label="Gesamte Views"
-                value={formatNum(stats.totalViews)}
-              />
-              <StatCard
-                icon={<Euro className="h-4 w-4" />}
-                label="Gesamtverdienst"
-                value={formatEur(stats.totalEarnings)}
-              />
-              <StatCard
-                icon={<TrendingUp className="h-4 w-4" />}
-                label="Letzte 30 Tage"
-                value={formatEur(stats.earnings30d)}
-              />
+          <div className="mb-6 grid gap-4 lg:grid-cols-3">
+            {/* Left: 4 KPI cards */}
+            <div className="lg:col-span-2 grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <StatCard icon={<Video className="h-3.5 w-3.5" />} label="Videos" value={formatNum(stats.videoCount)} />
+              <StatCard icon={<Eye className="h-3.5 w-3.5" />} label="Gesamte Views" value={formatNum(stats.totalViews)} />
+              <StatCard icon={<Euro className="h-3.5 w-3.5" />} label="Gesamtverdienst" value={formatEur(stats.totalEarnings)} />
+              <StatCard icon={<TrendingUp className="h-3.5 w-3.5" />} label="Letzte 30 Tage" value={formatEur(stats.earnings30d)} />
             </div>
-            {/* Reliability score card */}
-            {stats.reliabilityScore != null ? (
-              <div className="lg:col-span-2">
+            {/* Right: Reliability score */}
+            <div className="lg:col-span-1">
+              {stats.reliabilityScore != null ? (
                 <ReliabilityWidget
                   score={stats.reliabilityScore}
                   trustScore={stats.trustScore ?? 0}
                   performanceScore={stats.performanceScore ?? 0}
                 />
-              </div>
-            ) : (
-              <div className="lg:col-span-2 rounded-xl border border-border bg-card p-5 flex items-center justify-center">
-                <p className="text-xs text-muted-foreground">Noch kein Score verfügbar</p>
-              </div>
-            )}
+              ) : (
+                <div className="h-full rounded-xl border border-border bg-card p-4 flex items-center justify-center min-h-[6rem]">
+                  <p className="text-xs text-muted-foreground">Kein Score verfügbar</p>
+                </div>
+              )}
+            </div>
           </div>
         )}
 
