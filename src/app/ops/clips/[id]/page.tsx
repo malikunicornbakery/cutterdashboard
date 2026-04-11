@@ -5,6 +5,7 @@ import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
 import { CutterNav } from "@/components/cutter-nav";
 import { ClipNotesPanel } from "@/components/clip-notes-panel";
+import { ClipAttributesPanel } from "@/components/clip-attributes-panel";
 import {
   ArrowLeft,
   Flag,
@@ -420,6 +421,9 @@ export default function ClipDetailPage() {
           )}
 
         </div>
+
+        {/* Content attributes */}
+        <ClipAttributesPanel videoId={id} />
 
         {/* Internal notes panel */}
         <ClipNotesPanel videoId={id} />

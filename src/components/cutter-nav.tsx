@@ -166,6 +166,20 @@ export function CutterNav() {
             </Link>
           )}
 
+          {(session.role === "super_admin" || session.role === "ops_manager") && (
+            <Link
+              href="/ops/analytics"
+              className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium whitespace-nowrap transition-all duration-150 ${
+                pathname.startsWith("/ops/analytics")
+                  ? "bg-primary/15 text-primary"
+                  : "text-muted-foreground hover:bg-accent/60 hover:text-foreground"
+              }`}
+            >
+              <BarChart2 className="h-4 w-4 shrink-0" />
+              <span className="hidden md:block">Analytics</span>
+            </Link>
+          )}
+
           {session.role === "super_admin" && (
             <Link
               href="/admin"
