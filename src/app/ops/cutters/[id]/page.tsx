@@ -513,7 +513,7 @@ export default function CutterProfilePage() {
                   label="Angaben-Genauigkeit"
                   value={cutter.claim_accuracy_score} max={35}
                   color="bg-blue-500"
-                  hint={`${cutter.verifiable_count} prüfbare Clips. ${cutter.accurateCount ?? cutter.accurate_count} stimmten überein. Strafe: ${cutter.suspicious_count} verdächtig (×5), ${cutter.critical_count} kritisch (×12).`}
+                  hint={`${cutter.verifiable_count} prüfbare Clips. ${cutter.accurate_count} stimmten überein. Strafe: ${cutter.suspicious_count} verdächtig (×5), ${cutter.critical_count} kritisch (×12).`}
                 />
                 <ComponentBar
                   label="Vollständigkeit"

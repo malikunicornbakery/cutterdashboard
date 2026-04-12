@@ -3,7 +3,10 @@ import { randomUUID } from 'crypto';
 import { requirePermission, isCutter } from '@/lib/cutter/middleware';
 import { ensureDb } from '@/lib/db';
 import { writeAuditLog } from '@/lib/audit';
+import { sendInviteEmail } from '@/lib/cutter/email';
 import type { Role } from '@/lib/permissions';
+
+const INVITE_EXPIRES_DAYS = 7;
 
 const VALID_ROLES: Role[] = ['super_admin', 'ops_manager', 'cutter', 'viewer'];
 
@@ -45,12 +48,39 @@ export async function POST(request: NextRequest) {
   }
 
   const id = randomUUID();
+  const cleanEmail = email.trim().toLowerCase();
+  const cleanName  = name.trim();
+
+  // Generate invite token (7-day magic link)
+  const inviteToken  = randomUUID();
+  const tokenExpires = new Date(Date.now() + INVITE_EXPIRES_DAYS * 24 * 60 * 60 * 1000).toISOString();
+
   await db.execute({
-    sql: `INSERT INTO cutters (id, name, email, rate_per_view) VALUES (?, ?, ?, ?)`,
-    args: [id, name.trim(), email.trim().toLowerCase(), rate_per_view || 0.01],
+    sql: `INSERT INTO cutters (id, name, email, rate_per_view, magic_token, token_expires_at)
+          VALUES (?, ?, ?, ?, ?, ?)`,
+    args: [id, cleanName, cleanEmail, rate_per_view || 0.01, inviteToken, tokenExpires],
   });
 
-  return NextResponse.json({ id, name, email: email.trim().toLowerCase() });
+  await writeAuditLog(db, {
+    actorId:    auth.id,
+    actorName:  auth.name,
+    action:     'cutter_create',
+    entityType: 'cutter',
+    entityId:   id,
+    meta:       { email: cleanEmail, name: cleanName },
+  });
+
+  // Send invite email (non-blocking — don't fail the request if email fails)
+  sendInviteEmail(cleanEmail, cleanName, inviteToken, auth.name).catch((err) => {
+    console.error('[invite] email failed:', err);
+  });
+
+  return NextResponse.json({
+    id,
+    name: cleanName,
+    email: cleanEmail,
+    invite_sent: true,
+  });
 }
 
 export async function PATCH(request: NextRequest) {
