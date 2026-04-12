@@ -128,6 +128,45 @@ const s = StyleSheet.create({
     fontSize: 8,
     color: '#aaa',
   },
+
+  // Test watermark
+  watermarkContainer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  watermark: {
+    fontSize: 72,
+    fontFamily: 'Helvetica-Bold',
+    color: '#ff0000',
+    opacity: 0.08,
+    transform: 'rotate(-45deg)',
+    textAlign: 'center',
+  },
+  testBanner: {
+    backgroundColor: '#fff3cd',
+    borderWidth: 1,
+    borderColor: '#ffc107',
+    borderRadius: 4,
+    padding: 8,
+    marginBottom: 16,
+  },
+  testBannerText: {
+    fontSize: 9,
+    color: '#856404',
+    textAlign: 'center',
+    fontFamily: 'Helvetica-Bold',
+  },
+  testBannerSub: {
+    fontSize: 8,
+    color: '#856404',
+    textAlign: 'center',
+    marginTop: 2,
+  },
 });
 
 // ── Helpers ──────────────────────────────────────────────────────
@@ -147,14 +186,32 @@ function fmtNum(n: number): string {
 // ── Document ─────────────────────────────────────────────────────
 export function InvoicePDF({ data }: { data: InvoiceTemplateData }) {
   const senderDisplay = data.sender.company || data.sender.name;
+  const isTest = data.invoiceNumber.startsWith('TEST-');
 
   return (
     <Document
-      title={`Rechnung ${data.invoiceNumber}`}
+      title={`${isTest ? '[TEST] ' : ''}Rechnung ${data.invoiceNumber}`}
       author={senderDisplay}
-      subject="Rechnung"
+      subject={isTest ? 'Testrechnung — nicht zahlungspflichtig' : 'Rechnung'}
     >
       <Page size="A4" style={s.page}>
+
+        {/* ── Test watermark (diagonal background) ── */}
+        {isTest && (
+          <View style={s.watermarkContainer} fixed>
+            <Text style={s.watermark}>TESTRECHNUNG</Text>
+          </View>
+        )}
+
+        {/* ── Test banner ── */}
+        {isTest && (
+          <View style={s.testBanner}>
+            <Text style={s.testBannerText}>⚠ TESTRECHNUNG — NICHT ZAHLUNGSPFLICHTIG</Text>
+            <Text style={s.testBannerSub}>
+              Dieses Dokument wurde zu Testzwecken generiert. Views und Beträge sind fiktiv.
+            </Text>
+          </View>
+        )}
 
         {/* ── Sender header ── */}
         <Text style={s.senderName}>{senderDisplay}</Text>

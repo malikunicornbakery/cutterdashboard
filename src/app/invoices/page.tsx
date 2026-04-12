@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { CutterNav } from "@/components/cutter-nav";
-import { Receipt, Plus, Download } from "lucide-react";
+import { Receipt, Plus, Download, FlaskConical } from "lucide-react";
 
 interface Invoice {
   id: string;
@@ -40,6 +40,7 @@ export default function CutterInvoicesPage() {
   const router = useRouter();
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [generating, setGenerating] = useState(false);
+  const [generatingTest, setGeneratingTest] = useState(false);
 
   function loadInvoices() {
     fetch("/api/invoices")
@@ -68,20 +69,47 @@ export default function CutterInvoicesPage() {
     }
   }
 
+  async function handleTestGenerate() {
+    if (!confirm("Test-Rechnung generieren? Nutzt fiktive Views (10.000 pro Video) — echte Daten werden NICHT verändert.")) return;
+
+    setGeneratingTest(true);
+    const res = await fetch("/api/invoices/generate?test=1", { method: "POST" });
+    const data = await res.json();
+    setGeneratingTest(false);
+
+    if (res.ok) {
+      loadInvoices();
+      router.push(`/invoices/${data.invoice.id}`);
+    } else {
+      alert(data.error || "Fehler bei der Test-Rechnungserstellung");
+    }
+  }
+
   return (
     <>
       <CutterNav />
       <main className="mx-auto max-w-4xl p-6">
         <div className="mb-6 flex items-center justify-between">
           <h1 className="text-2xl font-bold">Rechnungen</h1>
-          <button
-            onClick={handleGenerate}
-            disabled={generating}
-            className="flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50"
-          >
-            <Plus className="h-4 w-4" />
-            {generating ? "Wird erstellt..." : "Rechnung generieren"}
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleTestGenerate}
+              disabled={generatingTest || generating}
+              title="Generiert eine Testrechnung mit fiktiven Views — echte Daten bleiben unverändert"
+              className="flex items-center gap-1.5 rounded-lg border border-border bg-card px-3.5 py-2 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-accent transition-colors disabled:opacity-50"
+            >
+              <FlaskConical className="h-4 w-4" />
+              {generatingTest ? "Wird erstellt..." : "Test-Rechnung"}
+            </button>
+            <button
+              onClick={handleGenerate}
+              disabled={generating || generatingTest}
+              className="flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50"
+            >
+              <Plus className="h-4 w-4" />
+              {generating ? "Wird erstellt..." : "Rechnung generieren"}
+            </button>
+          </div>
         </div>
 
         <div className="rounded-xl border border-border bg-card">
@@ -110,12 +138,19 @@ export default function CutterInvoicesPage() {
                     return (
                       <tr key={inv.id} className="hover:bg-muted/30">
                         <td className="px-4 py-3 font-medium">
-                          <Link
-                            href={`/invoices/${inv.id}`}
-                            className="hover:text-primary hover:underline"
-                          >
-                            {inv.invoice_number}
-                          </Link>
+                          <div className="flex items-center gap-2">
+                            <Link
+                              href={`/invoices/${inv.id}`}
+                              className="hover:text-primary hover:underline"
+                            >
+                              {inv.invoice_number}
+                            </Link>
+                            {inv.invoice_number.startsWith("TEST-") && (
+                              <span className="rounded px-1.5 py-0.5 text-xs font-medium bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                                TEST
+                              </span>
+                            )}
+                          </div>
                         </td>
                         <td className="px-4 py-3 text-muted-foreground">
                           {formatDate(inv.period_start)} – {formatDate(inv.period_end)}

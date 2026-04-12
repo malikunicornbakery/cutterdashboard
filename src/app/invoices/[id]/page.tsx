@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { CutterNav } from "@/components/cutter-nav";
-import { ArrowLeft, FileText, Download, ExternalLink } from "lucide-react";
+import { ArrowLeft, FileText, Download, ExternalLink, FlaskConical } from "lucide-react";
 
 interface Invoice {
   id: string;
@@ -105,6 +105,17 @@ export default function InvoiceDetailPage() {
           <ArrowLeft className="h-4 w-4" />
           Alle Rechnungen
         </Link>
+
+        {/* Test banner */}
+        {invoice.invoice_number.startsWith("TEST-") && (
+          <div className="mb-4 flex items-center gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3">
+            <FlaskConical className="h-5 w-5 text-amber-400 shrink-0" />
+            <div>
+              <p className="text-sm font-semibold text-amber-400">Testrechnung — nicht zahlungspflichtig</p>
+              <p className="text-xs text-amber-400/70">Dieses Dokument wurde zu Testzwecken generiert. Views und Beträge sind fiktiv (10.000 Views/Video). Echte Daten wurden nicht verändert.</p>
+            </div>
+          </div>
+        )}
 
         {/* Header */}
         <div className="mb-6 flex items-start justify-between">

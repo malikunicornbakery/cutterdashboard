@@ -19,9 +19,14 @@ interface SettingRow {
   value: string;
 }
 
+const TEST_VIEWS_PER_VIDEO = 10_000; // synthetic views for test invoices
+
 export async function POST(request: NextRequest) {
   const auth = await requireCutterAuth(request);
   if (!isCutter(auth)) return auth;
+
+  const url   = new URL(request.url);
+  const isTest = url.searchParams.get('test') === '1';
 
   const db = await ensureDb();
 
@@ -34,24 +39,31 @@ export async function POST(request: NextRequest) {
   });
   const videos = videosResult.rows as unknown as VideoRow[];
 
-  // Calculate deltas
-  const billableItems = videos
-    .filter((v) => v.current_views > v.views_at_last_invoice)
-    .map((v) => ({
-      video: v,
-      deltaViews: v.current_views - v.views_at_last_invoice,
-      amount: (v.current_views - v.views_at_last_invoice) * ratePerView,
-    }));
+  // Calculate billable items — test mode uses synthetic views for all videos
+  const billableItems = isTest
+    ? videos.map((v) => ({
+        video: v,
+        deltaViews: TEST_VIEWS_PER_VIDEO,
+        amount: TEST_VIEWS_PER_VIDEO * ratePerView,
+      }))
+    : videos
+        .filter((v) => v.current_views > v.views_at_last_invoice)
+        .map((v) => ({
+          video: v,
+          deltaViews: v.current_views - v.views_at_last_invoice,
+          amount: (v.current_views - v.views_at_last_invoice) * ratePerView,
+        }));
 
   if (billableItems.length === 0) {
     return NextResponse.json({ error: 'Keine abrechenbaren Views vorhanden.' }, { status: 400 });
   }
 
-  const totalViews = billableItems.reduce((s, i) => s + i.deltaViews, 0);
+  const totalViews  = billableItems.reduce((s, i) => s + i.deltaViews, 0);
   const totalAmount = billableItems.reduce((s, i) => s + i.amount, 0);
 
-  // Generate sequential invoice number
-  const invoiceNumber = await generateInvoiceNumber(db);
+  // Generate sequential invoice number (test invoices get TEST- prefix)
+  const baseNumber  = await generateInvoiceNumber(db);
+  const invoiceNumber = isTest ? `TEST-${baseNumber}` : baseNumber;
 
   // Determine period
   const lastInvoiceResult = await db.execute({
@@ -123,11 +135,13 @@ export async function POST(request: NextRequest) {
     });
   }
 
-  // Update views_at_last_invoice for ALL videos (reset baseline)
-  stmts.push({
-    sql: `UPDATE cutter_videos SET views_at_last_invoice = current_views WHERE cutter_id = ?`,
-    args: [auth.id],
-  });
+  // Update views_at_last_invoice for ALL videos (reset baseline) — skip for test invoices
+  if (!isTest) {
+    stmts.push({
+      sql: `UPDATE cutter_videos SET views_at_last_invoice = current_views WHERE cutter_id = ?`,
+      args: [auth.id],
+    });
+  }
 
   await db.transaction(stmts);
 
