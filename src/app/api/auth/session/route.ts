@@ -1,20 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSessionFromCookie } from '@/lib/cutter/auth';
+import { verifySession, getSessionCookie } from '@/lib/cutter/jwt';
 
 export async function GET(request: NextRequest) {
-  const token = request.cookies.get('cutter_session')?.value;
-  const cutter = await getSessionFromCookie(token);
+  const session = await verifySession(getSessionCookie(request));
 
-  if (!cutter) {
+  if (!session) {
     return NextResponse.json({ error: 'Nicht autorisiert' }, { status: 401 });
   }
 
   return NextResponse.json({
-    id: cutter.id,
-    name: cutter.name,
-    email: cutter.email,
-    company_name: cutter.company_name,
-    is_admin: cutter.role === 'super_admin',
-    role: cutter.role,
+    id:           session.id,
+    name:         session.name,
+    email:        session.email,
+    company_name: session.company_name,
+    is_admin:     session.role === 'super_admin',
+    role:         session.role,
   });
 }

@@ -1,32 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSessionFromCookie, hasOpsAccess, isSuperAdmin, type CutterRow } from './auth';
+import { verifySession, getSessionCookie } from './jwt';
 import { can, type Permission, type Role } from '@/lib/permissions';
+import type { CutterRow } from './auth';
 
 /**
- * Require cutter authentication for an API route.
- * Returns the cutter row if authenticated, or a 401 JSON response.
+ * Authenticate from JWT cookie — zero DB calls.
+ * Returns a CutterRow-compatible object or a 401 response.
  */
 export async function requireCutterAuth(
   request: NextRequest
 ): Promise<CutterRow | NextResponse> {
-  const token = request.cookies.get('cutter_session')?.value;
-  const cutter = await getSessionFromCookie(token);
+  const token   = getSessionCookie(request);
+  const session = await verifySession(token);
 
-  if (!cutter) {
+  if (!session || !session.is_active) {
     return NextResponse.json({ error: 'Nicht autorisiert' }, { status: 401 });
   }
 
-  return cutter;
+  // Return session payload shaped as CutterRow
+  return session as unknown as CutterRow;
 }
 
-/**
- * Require a specific named permission.
- * Primary auth wrapper — prefer this over requireOpsAccess / requireCutterAdmin.
- *
- * Usage:
- *   const auth = await requirePermission(request, 'OPS_READ');
- *   if (!isCutter(auth)) return auth;
- */
 export async function requirePermission(
   request: NextRequest,
   permission: Permission
@@ -41,43 +35,18 @@ export async function requirePermission(
   return result;
 }
 
-/**
- * Require super_admin role (full access).
- * @deprecated Prefer requirePermission(request, 'USER_MANAGE')
- */
 export async function requireCutterAdmin(
   request: NextRequest
 ): Promise<CutterRow | NextResponse> {
-  const result = await requireCutterAuth(request);
-  if (result instanceof NextResponse) return result;
-
-  if (!isSuperAdmin(result)) {
-    return NextResponse.json({ error: 'Kein Admin-Zugang' }, { status: 403 });
-  }
-
-  return result;
+  return requirePermission(request, 'USER_MANAGE');
 }
 
-/**
- * Require ops access (super_admin or ops_manager).
- * @deprecated Prefer requirePermission(request, 'OPS_READ')
- */
 export async function requireOpsAccess(
   request: NextRequest
 ): Promise<CutterRow | NextResponse> {
-  const result = await requireCutterAuth(request);
-  if (result instanceof NextResponse) return result;
-
-  if (!hasOpsAccess(result)) {
-    return NextResponse.json({ error: 'Kein Ops-Zugang' }, { status: 403 });
-  }
-
-  return result;
+  return requirePermission(request, 'OPS_READ');
 }
 
-/**
- * Type guard: check if the result is a cutter row (not an error response).
- */
 export function isCutter(
   result: CutterRow | NextResponse
 ): result is CutterRow {
