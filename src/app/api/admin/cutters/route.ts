@@ -61,16 +61,16 @@ export async function POST(request: NextRequest) {
     args: [id, cleanName, cleanEmail, rate_per_view || 0.01, inviteToken, tokenExpires],
   });
 
-  await writeAuditLog(db, {
+  // Both audit log and email are fire-and-forget — respond immediately
+  writeAuditLog(db, {
     actorId:    auth.id,
     actorName:  auth.name,
     action:     'cutter_create',
     entityType: 'cutter',
     entityId:   id,
     meta:       { email: cleanEmail, name: cleanName },
-  });
+  }).catch((err) => console.error('[audit]', err));
 
-  // Send invite email (non-blocking — don't fail the request if email fails)
   sendInviteEmail(cleanEmail, cleanName, inviteToken, auth.name).catch((err) => {
     console.error('[invite] email failed:', err);
   });
