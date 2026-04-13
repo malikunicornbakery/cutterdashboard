@@ -6,7 +6,7 @@ import Link from "next/link";
 import { CutterNav } from "@/components/cutter-nav";
 import {
   Users, Plus, Mail, RefreshCw, CheckCircle,
-  ChevronRight, UserX, UserCheck, X,
+  ChevronRight, UserX, UserCheck, X, Link2, Copy,
 } from "lucide-react";
 
 interface Cutter {
@@ -52,6 +52,8 @@ function InviteModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: (
   const [saving, setSaving]     = useState(false);
   const [error, setError]       = useState<string | null>(null);
   const [done, setDone]         = useState(false);
+  const [inviteLink, setInviteLink] = useState<string | null>(null);
+  const [copied, setCopied]     = useState(false);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -65,8 +67,18 @@ function InviteModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: (
     const data = await res.json();
     setSaving(false);
     if (!res.ok) { setError(data.error || "Fehler"); return; }
+    if (data.invite_token) {
+      setInviteLink(`${window.location.origin}/api/auth/verify?token=${data.invite_token}`);
+    }
     setDone(true);
     onSuccess();
+  }
+
+  async function copyLink() {
+    if (!inviteLink) return;
+    await navigator.clipboard.writeText(inviteLink);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2500);
   }
 
   return (
@@ -88,9 +100,24 @@ function InviteModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: (
             <p className="text-sm text-muted-foreground">
               {name} erhält eine E-Mail mit einem Aktivierungslink (gültig 7 Tage).
             </p>
+            {inviteLink && (
+              <div className="w-full mt-1 rounded-lg border border-border bg-muted/40 p-3 text-left">
+                <p className="text-xs text-muted-foreground mb-1.5">Backup-Link (falls E-Mail nicht ankommt)</p>
+                <div className="flex items-center gap-2">
+                  <p className="flex-1 truncate text-xs font-mono text-foreground">{inviteLink}</p>
+                  <button
+                    onClick={copyLink}
+                    className="shrink-0 flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs hover:bg-accent transition-colors"
+                  >
+                    {copied ? <CheckCircle className="h-3 w-3 text-emerald-400" /> : <Copy className="h-3 w-3" />}
+                    {copied ? "Kopiert" : "Kopieren"}
+                  </button>
+                </div>
+              </div>
+            )}
             <button
               onClick={onClose}
-              className="mt-2 rounded-lg bg-primary px-5 py-2 text-sm font-medium text-primary-foreground hover:opacity-90"
+              className="mt-1 rounded-lg bg-primary px-5 py-2 text-sm font-medium text-primary-foreground hover:opacity-90"
             >
               Schließen
             </button>
@@ -165,8 +192,10 @@ export default function OpsCuttersPage() {
   const [cutters, setCutters] = useState<Cutter[]>([]);
   const [loading, setLoading] = useState(true);
   const [showInvite, setShowInvite] = useState(false);
-  const [resendingId, setResendingId] = useState<string | null>(null);
-  const [resendDone, setResendDone]   = useState<string | null>(null);
+  const [resendingId, setResendingId]   = useState<string | null>(null);
+  const [resendDone, setResendDone]     = useState<string | null>(null);
+  const [copyingId, setCopyingId]       = useState<string | null>(null);
+  const [copiedLinkId, setCopiedLinkId] = useState<string | null>(null);
 
   function load() {
     fetch("/api/admin/cutters")
@@ -189,6 +218,19 @@ export default function OpsCuttersPage() {
     if (res.ok) {
       setResendDone(id);
       setTimeout(() => setResendDone(null), 3000);
+    }
+  }
+
+  async function copyInviteLink(id: string) {
+    setCopyingId(id);
+    const res = await fetch(`/api/admin/cutters/${id}/invite`, { method: "POST" });
+    setCopyingId(null);
+    if (res.ok) {
+      const data = await res.json();
+      const link = `${window.location.origin}/api/auth/verify?token=${data.token}`;
+      await navigator.clipboard.writeText(link);
+      setCopiedLinkId(id);
+      setTimeout(() => setCopiedLinkId(null), 3000);
     }
   }
 
@@ -300,11 +342,11 @@ export default function OpsCuttersPage() {
                         </div>
                       </div>
                       <div className="flex items-center gap-2 ml-4 shrink-0">
-                        {/* Resend invite */}
+                        {/* Resend invite email */}
                         <button
                           onClick={() => resendInvite(c.id)}
-                          disabled={resendingId === c.id}
-                          title="Einladungslink erneut senden"
+                          disabled={resendingId === c.id || copyingId === c.id}
+                          title="Einladungslink per E-Mail senden"
                           className="flex items-center gap-1 rounded-lg border border-border px-2.5 py-1.5 text-xs text-muted-foreground hover:text-foreground hover:bg-accent transition-colors disabled:opacity-50"
                         >
                           {resendDone === c.id ? (
@@ -312,7 +354,22 @@ export default function OpsCuttersPage() {
                           ) : resendingId === c.id ? (
                             <><RefreshCw className="h-3.5 w-3.5 animate-spin" /> …</>
                           ) : (
-                            <><Mail className="h-3.5 w-3.5" /> Einladen</>
+                            <><Mail className="h-3.5 w-3.5" /> E-Mail</>
+                          )}
+                        </button>
+                        {/* Copy invite link */}
+                        <button
+                          onClick={() => copyInviteLink(c.id)}
+                          disabled={copyingId === c.id || resendingId === c.id}
+                          title="Einladungslink in die Zwischenablage kopieren"
+                          className="flex items-center gap-1 rounded-lg border border-border px-2.5 py-1.5 text-xs text-muted-foreground hover:text-foreground hover:bg-accent transition-colors disabled:opacity-50"
+                        >
+                          {copiedLinkId === c.id ? (
+                            <><CheckCircle className="h-3.5 w-3.5 text-emerald-400" /> Kopiert</>
+                          ) : copyingId === c.id ? (
+                            <><RefreshCw className="h-3.5 w-3.5 animate-spin" /> …</>
+                          ) : (
+                            <><Link2 className="h-3.5 w-3.5" /> Link</>
                           )}
                         </button>
                         {/* Detail link */}

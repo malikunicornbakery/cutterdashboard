@@ -42,5 +42,5 @@ export async function POST(
   sendInviteEmail(cutter.email, cutter.name, token, auth.name)
     .catch((err) => console.error('[invite] email failed:', err));
 
-  return NextResponse.json({ success: true, email: cutter.email });
+  return NextResponse.json({ success: true, email: cutter.email, token });
 }

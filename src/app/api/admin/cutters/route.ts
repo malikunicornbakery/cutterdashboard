@@ -80,6 +80,7 @@ export async function POST(request: NextRequest) {
     name: cleanName,
     email: cleanEmail,
     invite_sent: true,
+    invite_token: inviteToken,
   });
 }
 
