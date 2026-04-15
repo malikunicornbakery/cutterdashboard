@@ -4,7 +4,7 @@ import { randomUUID } from 'crypto';
 import { getSessionFromCookie } from '@/lib/cutter/auth';
 import { ensureDb } from '@/lib/db';
 
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://cutter-dashboard-six.vercel.app';
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://cutterdashboard-85kk5pbh2-unicorn-bakery.vercel.app';
 const INSTAGRAM_APP_ID = process.env.INSTAGRAM_APP_ID || '';
 const INSTAGRAM_APP_SECRET = process.env.INSTAGRAM_APP_SECRET || '';
 

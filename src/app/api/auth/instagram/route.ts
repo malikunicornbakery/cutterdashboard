@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { getSessionFromCookie } from '@/lib/cutter/auth';
 
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://cutter-dashboard-six.vercel.app';
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://cutterdashboard-85kk5pbh2-unicorn-bakery.vercel.app';
 
 export async function GET(request: NextRequest) {
   const cookieStore = await cookies();

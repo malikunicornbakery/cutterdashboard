@@ -16,7 +16,7 @@ import { randomUUID } from 'crypto';
 import { getSessionFromCookie } from '@/lib/cutter/auth';
 import { ensureDb } from '@/lib/db';
 
-const APP_URL              = process.env.NEXT_PUBLIC_APP_URL || 'https://cutter-dashboard-six.vercel.app';
+const APP_URL              = process.env.NEXT_PUBLIC_APP_URL || 'https://cutterdashboard-85kk5pbh2-unicorn-bakery.vercel.app';
 const YOUTUBE_CLIENT_ID    = process.env.YOUTUBE_CLIENT_ID    || '';
 const YOUTUBE_CLIENT_SECRET = process.env.YOUTUBE_CLIENT_SECRET || '';
 
