@@ -2,7 +2,7 @@
 
 import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Scissors, Mail, ArrowRight, CheckCircle, AlertCircle, Lock } from "lucide-react";
+import { Scissors, Mail, ArrowRight, CheckCircle, AlertCircle, Lock, Copy } from "lucide-react";
 
 function LoginForm() {
   const router = useRouter();
@@ -15,6 +15,8 @@ function LoginForm() {
   const [password, setPassword] = useState("");
   const [status, setStatus] = useState<"idle" | "loading" | "sent" | "error">("idle");
   const [errorMsg, setErrorMsg] = useState("");
+  const [magicLink, setMagicLink] = useState<string | null>(null);
+  const [linkCopied, setLinkCopied] = useState(false);
 
   async function handleMagicLink(e: React.FormEvent) {
     e.preventDefault();
@@ -28,6 +30,8 @@ function LoginForm() {
         body: JSON.stringify({ email: email.trim().toLowerCase(), redirect }),
       });
       if (res.ok) {
+        const data = await res.json();
+        if (data.link) setMagicLink(data.link);
         setStatus("sent");
       } else {
         const data = await res.json();
@@ -38,6 +42,13 @@ function LoginForm() {
       setErrorMsg("Verbindungsfehler. Bitte versuche es erneut.");
       setStatus("error");
     }
+  }
+
+  async function copyMagicLink() {
+    if (!magicLink) return;
+    await navigator.clipboard.writeText(magicLink);
+    setLinkCopied(true);
+    setTimeout(() => setLinkCopied(false), 2500);
   }
 
   async function handlePassword(e: React.FormEvent) {
@@ -106,20 +117,41 @@ function LoginForm() {
       )}
 
       {status === "sent" ? (
-        <div className="rounded-2xl border border-primary/20 bg-card p-7 text-center">
-          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-primary/15">
-            <CheckCircle className="h-6 w-6 text-primary" />
+        <div className="rounded-2xl border border-primary/20 bg-card p-7">
+          <div className="flex flex-col items-center text-center mb-5">
+            <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-primary/15">
+              <CheckCircle className="h-6 w-6 text-primary" />
+            </div>
+            <h2 className="font-semibold text-base mb-1">Link erstellt!</h2>
+            <p className="text-sm text-muted-foreground leading-relaxed">
+              Eine E-Mail wurde an{" "}
+              <span className="font-medium text-foreground">{email}</span>{" "}
+              gesendet.
+            </p>
           </div>
-          <h2 className="font-semibold text-base mb-1">E-Mail gesendet!</h2>
-          <p className="text-sm text-muted-foreground leading-relaxed">
-            Ein Login-Link wurde an{" "}
-            <span className="font-medium text-foreground">{email}</span>{" "}
-            gesendet. Bitte prüfe dein Postfach und klicke auf den Link.
-          </p>
-          <p className="mt-3 text-xs text-muted-foreground">Kein E-Mail? Prüfe den Spam-Ordner.</p>
+
+          {magicLink && (
+            <div className="mb-4 rounded-xl border border-border bg-muted/40 p-3">
+              <p className="text-xs text-muted-foreground mb-2 font-medium">Direkt einloggen (falls E-Mail nicht ankommt):</p>
+              <a
+                href={magicLink}
+                className="block text-xs font-mono text-primary truncate mb-2 hover:underline"
+              >
+                {magicLink}
+              </a>
+              <button
+                onClick={copyMagicLink}
+                className="w-full flex items-center justify-center gap-1.5 rounded-lg border border-border py-1.5 text-xs text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+              >
+                {linkCopied ? <><CheckCircle className="h-3 w-3 text-emerald-400" /> Kopiert!</> : <><Copy className="h-3 w-3" /> Link kopieren</>}
+              </button>
+            </div>
+          )}
+
+          <p className="text-center text-xs text-muted-foreground">Kein E-Mail? Prüfe den Spam-Ordner.</p>
           <button
-            onClick={() => { setStatus("idle"); setEmail(""); }}
-            className="mt-5 text-sm text-primary hover:underline"
+            onClick={() => { setStatus("idle"); setEmail(""); setMagicLink(null); }}
+            className="mt-4 w-full text-sm text-primary hover:underline"
           >
             Andere E-Mail verwenden
           </button>
