@@ -13,12 +13,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { randomUUID } from 'crypto';
-import { getSessionFromCookie } from '@/lib/cutter/auth';
+import { verifySession } from '@/lib/cutter/jwt';
 import { ensureDb } from '@/lib/db';
 
-const APP_URL              = process.env.NEXT_PUBLIC_APP_URL || 'https://cutterdashboard-85kk5pbh2-unicorn-bakery.vercel.app';
 const YOUTUBE_CLIENT_ID    = process.env.YOUTUBE_CLIENT_ID    || '';
 const YOUTUBE_CLIENT_SECRET = process.env.YOUTUBE_CLIENT_SECRET || '';
+
+function getAppUrl(request: NextRequest): string {
+  return process.env.CUTTER_BASE_URL || process.env.NEXT_PUBLIC_APP_URL || request.nextUrl.origin;
+}
 
 const REDIRECT_BASE = '/accounts';
 
@@ -39,9 +42,11 @@ export async function GET(request: NextRequest) {
   const sessionToken = cookieStore.get('cutter_session')?.value;
   if (!state || state !== sessionToken) return fail(request, 'invalid_state');
 
-  const cutter = await getSessionFromCookie(state);
+  const cutter = await verifySession(state);
   if (!cutter) return NextResponse.redirect(new URL('/login', request.url));
   if (!code)   return fail(request, 'youtube_failed');
+
+  const APP_URL = getAppUrl(request);
 
   try {
     // ── Step 1: Exchange code for tokens ────────────────────────

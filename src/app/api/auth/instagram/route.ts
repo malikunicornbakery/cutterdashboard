@@ -1,17 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
-import { getSessionFromCookie } from '@/lib/cutter/auth';
-
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://cutterdashboard-85kk5pbh2-unicorn-bakery.vercel.app';
+import { verifySession } from '@/lib/cutter/jwt';
 
 export async function GET(request: NextRequest) {
   const cookieStore = await cookies();
   const sessionToken = cookieStore.get('cutter_session')?.value;
 
-  const cutter = await getSessionFromCookie(sessionToken);
+  const cutter = await verifySession(sessionToken);
   if (!cutter) {
     return NextResponse.redirect(new URL('/login', request.url));
   }
+
+  const APP_URL = process.env.CUTTER_BASE_URL || process.env.NEXT_PUBLIC_APP_URL || request.nextUrl.origin;
 
   const params = new URLSearchParams({
     client_id: process.env.INSTAGRAM_APP_ID || '',

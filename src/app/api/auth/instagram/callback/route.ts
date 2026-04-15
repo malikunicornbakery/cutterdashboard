@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { randomUUID } from 'crypto';
-import { getSessionFromCookie } from '@/lib/cutter/auth';
+import { verifySession } from '@/lib/cutter/jwt';
 import { ensureDb } from '@/lib/db';
 
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://cutterdashboard-85kk5pbh2-unicorn-bakery.vercel.app';
 const INSTAGRAM_APP_ID = process.env.INSTAGRAM_APP_ID || '';
 const INSTAGRAM_APP_SECRET = process.env.INSTAGRAM_APP_SECRET || '';
 
@@ -28,7 +27,7 @@ export async function GET(request: NextRequest) {
   }
 
   // Get the authenticated cutter from the state (which is the session token)
-  const cutter = await getSessionFromCookie(state);
+  const cutter = await verifySession(state);
   if (!cutter) {
     return NextResponse.redirect(new URL('/login', request.url));
   }
@@ -36,6 +35,8 @@ export async function GET(request: NextRequest) {
   if (!code) {
     return NextResponse.redirect(new URL('/accounts?error=instagram_failed', request.url));
   }
+
+  const APP_URL = process.env.CUTTER_BASE_URL || process.env.NEXT_PUBLIC_APP_URL || request.nextUrl.origin;
 
   try {
     // Step 1: Exchange code for short-lived token
