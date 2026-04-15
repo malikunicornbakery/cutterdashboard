@@ -72,8 +72,10 @@ export default function CutterAdminPage() {
   const [newName, setNewName] = useState("");
   const [newEmail, setNewEmail] = useState("");
   const [newRate, setNewRate] = useState("0.01");
+  const [newRole, setNewRole] = useState("cutter");
   const [createError, setCreateError] = useState("");
   const [creating, setCreating] = useState(false);
+  const [createSuccess, setCreateSuccess] = useState("");
   const [scrapeStatus, setScrapeStatus] = useState<ScrapeStatus | null>(null);
   const [syncLogs, setSyncLogs] = useState<SyncLog[]>([]);
   const [syncing, setSyncing] = useState(false);
@@ -101,17 +103,16 @@ export default function CutterAdminPage() {
     }
   }
 
-  function loadAll() {
-    fetch("/api/admin/cutters")
-      .then((r) => {
-        if (r.status === 401 || r.status === 403) { router.push("/login"); return null; }
-        return r.json();
-      })
-      .then((data) => data?.cutters && setCutters(data.cutters));
-
-    fetch("/api/admin/settings")
-      .then((r) => r.json())
-      .then((data) => data?.settings && setSettings(data.settings));
+  async function loadAll() {
+    const [cuttersRes, settingsRes] = await Promise.all([
+      fetch("/api/admin/cutters"),
+      fetch("/api/admin/settings"),
+    ]);
+    if (cuttersRes.status === 401 || cuttersRes.status === 403) { router.push("/login"); return; }
+    const cuttersData = await cuttersRes.json();
+    if (cuttersData?.cutters) setCutters(cuttersData.cutters);
+    const settingsData = await settingsRes.json();
+    if (settingsData?.settings) setSettings(settingsData.settings);
 
     fetch("/api/admin/scrape-status")
       .then((r) => r.json())
@@ -124,6 +125,7 @@ export default function CutterAdminPage() {
   async function handleCreateCutter(e?: React.FormEvent) {
     e?.preventDefault();
     setCreateError("");
+    setCreateSuccess("");
     if (!newName.trim()) { setCreateError("Name erforderlich"); return; }
     if (!newEmail.trim()) { setCreateError("E-Mail erforderlich"); return; }
 
@@ -136,18 +138,29 @@ export default function CutterAdminPage() {
           name: newName.trim(),
           email: newEmail.trim().toLowerCase(),
           rate_per_view: parseFloat(newRate.replace(",", ".")) || 0.01,
+          role: newRole,
         }),
       });
 
+      const data = await res.json();
+
       if (res.ok) {
-        setShowNew(false);
+        // Update role immediately after creation if not "cutter"
+        if (newRole !== "cutter") {
+          await fetch("/api/admin/cutters", {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ id: data.id, role: newRole }),
+          });
+        }
+        setCreateSuccess(`${newName.trim()} wurde angelegt!`);
         setNewName("");
         setNewEmail("");
         setNewRate("0.01");
-        setCreateError("");
-        loadAll();
+        setNewRole("cutter");
+        await loadAll();
+        setTimeout(() => { setShowNew(false); setCreateSuccess(""); }, 1500);
       } else {
-        const data = await res.json();
         setCreateError(data.error || "Fehler beim Anlegen");
       }
     } finally {
@@ -197,42 +210,59 @@ export default function CutterAdminPage() {
 
           {showNew && (
             <form onSubmit={handleCreateCutter} className="mb-4 rounded-xl border border-primary/30 bg-primary/5 p-4">
-              <div className="grid gap-3 sm:grid-cols-4">
+              {createError && (
+                <div className="mb-3 flex items-center gap-2 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-400">
+                  ⚠ {createError}
+                </div>
+              )}
+              {createSuccess && (
+                <div className="mb-3 flex items-center gap-2 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-400">
+                  ✓ {createSuccess}
+                </div>
+              )}
+              <div className="grid gap-3 sm:grid-cols-5">
                 <input
                   value={newName}
                   onChange={(e) => setNewName(e.target.value)}
-                  onBlur={(e) => setNewName(e.target.value)}
                   placeholder="Name"
                   autoComplete="off"
+                  required
                   className="h-9 rounded-lg border border-input bg-background px-3 text-sm outline-none focus:border-primary"
                 />
                 <input
                   value={newEmail}
                   onChange={(e) => setNewEmail(e.target.value)}
-                  onBlur={(e) => setNewEmail(e.target.value)}
                   placeholder="E-Mail"
                   type="email"
                   autoComplete="off"
+                  required
                   className="h-9 rounded-lg border border-input bg-background px-3 text-sm outline-none focus:border-primary"
                 />
                 <input
                   value={newRate}
                   onChange={(e) => setNewRate(e.target.value)}
-                  placeholder="Rate/View (z.B. 0.01)"
+                  placeholder="Rate/View"
                   autoComplete="off"
                   className="h-9 rounded-lg border border-input bg-background px-3 text-sm outline-none focus:border-primary"
                 />
+                <select
+                  value={newRole}
+                  onChange={(e) => setNewRole(e.target.value)}
+                  className="h-9 rounded-lg border border-input bg-background px-2 text-sm outline-none focus:border-primary"
+                >
+                  <option value="cutter">Cutter</option>
+                  <option value="ops_manager">Ops Manager</option>
+                  <option value="super_admin">Admin</option>
+                  <option value="viewer">Viewer</option>
+                </select>
                 <button
                   type="submit"
                   disabled={creating}
                   className="h-9 rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground disabled:opacity-50"
                 >
-                  {creating ? "..." : "Anlegen"}
+                  {creating ? "Anlegen..." : "Anlegen"}
                 </button>
               </div>
-              {createError && (
-                <p className="mt-2 text-xs text-red-400">{createError}</p>
-              )}
             </form>
           )}
 
