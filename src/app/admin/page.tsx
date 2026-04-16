@@ -80,7 +80,8 @@ export default function CutterAdminPage() {
   const [syncing, setSyncing] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [invitingId, setInvitingId] = useState<string | null>(null);
-  const [inviteSent, setInviteSent] = useState<string | null>(null); // cutter id that got invite
+  const [inviteLink, setInviteLink] = useState<{ cutterId: string; link: string; name: string } | null>(null);
+  const [linkCopied, setLinkCopied] = useState(false);
 
   function loadSyncLogs() {
     fetch("/api/admin/sync")
@@ -194,19 +195,28 @@ export default function CutterAdminPage() {
     }
   }
 
-  async function handleInviteCutter(id: string) {
+  async function handleInviteCutter(id: string, name: string) {
     setInvitingId(id);
     try {
       const res = await fetch(`/api/admin/cutters/${id}/invite`, { method: "POST" });
-      if (res.ok) {
-        setInviteSent(id);
-        setTimeout(() => setInviteSent(null), 3000);
+      const data = await res.json();
+      if (res.ok && data.token) {
+        const base = process.env.NEXT_PUBLIC_APP_URL || window.location.origin;
+        const link = `${base}/api/auth/verify?token=${data.token}`;
+        setInviteLink({ cutterId: id, link, name });
       } else {
         alert("Einladung fehlgeschlagen");
       }
     } finally {
       setInvitingId(null);
     }
+  }
+
+  async function copyInviteLink() {
+    if (!inviteLink) return;
+    await navigator.clipboard.writeText(inviteLink.link);
+    setLinkCopied(true);
+    setTimeout(() => setLinkCopied(false), 2000);
   }
 
   return (
@@ -286,6 +296,40 @@ export default function CutterAdminPage() {
             </form>
           )}
 
+          {/* Invite link panel */}
+          {inviteLink && (
+            <div className="mb-4 rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-emerald-400 mb-1">
+                    ✓ Einladungslink für {inviteLink.name}
+                    {" "}<span className="text-xs font-normal text-muted-foreground">(E-Mail wurde versendet falls konfiguriert)</span>
+                  </p>
+                  <p className="text-xs text-muted-foreground mb-2">
+                    Kopiere den Link und schick ihn direkt per WhatsApp, Telegram o.ä. — gültig 7 Tage.
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <code className="flex-1 truncate rounded bg-muted px-3 py-1.5 text-xs font-mono text-muted-foreground">
+                      {inviteLink.link}
+                    </code>
+                    <button
+                      onClick={copyInviteLink}
+                      className="shrink-0 rounded-lg border border-border bg-background px-3 py-1.5 text-xs font-medium hover:bg-muted transition-colors"
+                    >
+                      {linkCopied ? "✓ Kopiert!" : "Kopieren"}
+                    </button>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setInviteLink(null)}
+                  className="text-muted-foreground hover:text-foreground text-lg leading-none shrink-0"
+                >
+                  ×
+                </button>
+              </div>
+            </div>
+          )}
+
           <div className="rounded-xl border border-border bg-card">
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -351,11 +395,11 @@ export default function CutterAdminPage() {
                       <td className="px-4 py-3">
                         <div className="flex items-center justify-end gap-1">
                           <button
-                            onClick={() => handleInviteCutter(c.id)}
+                            onClick={() => handleInviteCutter(c.id, c.name)}
                             disabled={invitingId === c.id}
                             title="Einladung schicken"
                             className={`flex h-7 w-7 items-center justify-center rounded transition-colors ${
-                              inviteSent === c.id
+                              inviteLink?.cutterId === c.id
                                 ? "bg-emerald-500/10 text-emerald-400"
                                 : "hover:bg-muted text-muted-foreground hover:text-foreground"
                             } disabled:opacity-50`}
