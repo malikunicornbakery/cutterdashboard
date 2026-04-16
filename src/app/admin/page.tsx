@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { CutterNav } from "@/components/cutter-nav";
-import { Save, CheckCircle, UserPlus, Activity, RefreshCw, Youtube, Clock, AlertCircle, CheckCircle2 } from "lucide-react";
+import { UserPlus, Activity, RefreshCw, Youtube, Clock, AlertCircle, CheckCircle2 } from "lucide-react";
 
 interface Cutter {
   id: string;
@@ -67,7 +67,6 @@ export default function CutterAdminPage() {
   const router = useRouter();
   const [cutters, setCutters] = useState<Cutter[]>([]);
   const [settings, setSettings] = useState<Settings>({});
-  const [settingsSaved, setSettingsSaved] = useState(false);
   const [showNew, setShowNew] = useState(false);
   const [newName, setNewName] = useState("");
   const [newEmail, setNewEmail] = useState("");
@@ -175,18 +174,6 @@ export default function CutterAdminPage() {
       body: JSON.stringify({ id, [field]: value }),
     });
     loadAll();
-  }
-
-  async function handleSaveSettings() {
-    for (const [key, value] of Object.entries(settings)) {
-      await fetch("/api/admin/settings", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ key, value }),
-      });
-    }
-    setSettingsSaved(true);
-    setTimeout(() => setSettingsSaved(false), 3000);
   }
 
   return (
@@ -545,46 +532,18 @@ export default function CutterAdminPage() {
             </p>
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
-                <label className="mb-1 block text-sm font-medium">Firmenname</label>
-                <input
-                  value={settings.recipient_company_name || ""}
-                  onChange={(e) => setSettings({ ...settings, recipient_company_name: e.target.value })}
-                  className="h-9 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none focus:border-primary"
-                />
+                <p className="mb-1 text-xs text-muted-foreground">Firmenname</p>
+                <p className="text-sm font-medium">{settings.recipient_company_name || "—"}</p>
               </div>
               <div>
-                <label className="mb-1 block text-sm font-medium">USt-IdNr.</label>
-                <input
-                  value={settings.recipient_tax_id || ""}
-                  onChange={(e) => setSettings({ ...settings, recipient_tax_id: e.target.value })}
-                  className="h-9 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none focus:border-primary"
-                />
+                <p className="mb-1 text-xs text-muted-foreground">USt-IdNr.</p>
+                <p className="text-sm font-medium">{settings.recipient_tax_id || "—"}</p>
               </div>
             </div>
             <div className="mt-4">
-              <label className="mb-1 block text-sm font-medium">Adresse</label>
-              <input
-                value={settings.recipient_company_address || ""}
-                onChange={(e) => setSettings({ ...settings, recipient_company_address: e.target.value })}
-                className="h-9 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none focus:border-primary"
-              />
+              <p className="mb-1 text-xs text-muted-foreground">Adresse</p>
+              <p className="text-sm font-medium">{settings.recipient_company_address || "—"}</p>
             </div>
-            <button
-              onClick={handleSaveSettings}
-              className="mt-4 flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90"
-            >
-              {settingsSaved ? (
-                <>
-                  <CheckCircle className="h-4 w-4" />
-                  Gespeichert
-                </>
-              ) : (
-                <>
-                  <Save className="h-4 w-4" />
-                  Speichern
-                </>
-              )}
-            </button>
           </div>
         </section>
       </main>
