@@ -80,7 +80,7 @@ export default function CutterAdminPage() {
   const [syncing, setSyncing] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [invitingId, setInvitingId] = useState<string | null>(null);
-  const [inviteLink, setInviteLink] = useState<{ cutterId: string; link: string; name: string } | null>(null);
+  const [inviteLink, setInviteLink] = useState<{ cutterId: string; link: string; name: string; emailSent: boolean; emailError: string | null } | null>(null);
   const [linkCopied, setLinkCopied] = useState(false);
 
   function loadSyncLogs() {
@@ -201,9 +201,15 @@ export default function CutterAdminPage() {
       const res = await fetch(`/api/admin/cutters/${id}/invite`, { method: "POST" });
       const data = await res.json();
       if (res.ok && data.token) {
-        const base = process.env.NEXT_PUBLIC_APP_URL || window.location.origin;
+        const base = window.location.origin;
         const link = `${base}/api/auth/verify?token=${data.token}`;
-        setInviteLink({ cutterId: id, link, name });
+        setInviteLink({
+          cutterId: id,
+          link,
+          name,
+          emailSent: data.email_sent ?? false,
+          emailError: data.email_error ?? null,
+        });
       } else {
         alert("Einladung fehlgeschlagen");
       }
@@ -303,11 +309,17 @@ export default function CutterAdminPage() {
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-emerald-400 mb-1">
                     ✓ Einladungslink für {inviteLink.name}
-                    {" "}<span className="text-xs font-normal text-muted-foreground">(E-Mail wurde versendet falls konfiguriert)</span>
                   </p>
-                  <p className="text-xs text-muted-foreground mb-2">
-                    Kopiere den Link und schick ihn direkt per WhatsApp, Telegram o.ä. — gültig 7 Tage.
-                  </p>
+                  {inviteLink.emailSent ? (
+                    <p className="text-xs text-emerald-400/70 mb-2">✓ E-Mail wurde versendet</p>
+                  ) : (
+                    <p className="text-xs text-amber-400 mb-2">
+                      ⚠ E-Mail konnte nicht gesendet werden
+                      {inviteLink.emailError && <span className="text-muted-foreground"> — {inviteLink.emailError}</span>}
+                      {" · "}Link unten kopieren und direkt schicken.
+                    </p>
+                  )}
+                  <p className="text-xs text-muted-foreground mb-2">Gültig 7 Tage.</p>
                   <div className="flex items-center gap-2">
                     <code className="flex-1 truncate rounded bg-muted px-3 py-1.5 text-xs font-mono text-muted-foreground">
                       {inviteLink.link}

@@ -10,7 +10,6 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  // Auth + params in parallel
   const [auth, { id }] = await Promise.all([
     requirePermission(request, 'USER_MANAGE'),
     params,
@@ -32,15 +31,27 @@ export async function POST(
   const token   = randomUUID();
   const expires = new Date(Date.now() + INVITE_EXPIRES_DAYS * 24 * 60 * 60 * 1000).toISOString();
 
-  // Update token + send email in parallel — don't await email
   await db.execute({
     sql: `UPDATE cutters SET magic_token = ?, token_expires_at = ? WHERE id = ?`,
     args: [token, expires, id],
   });
 
-  // Fire-and-forget — respond immediately, email sends in background
-  sendInviteEmail(cutter.email, cutter.name, token, auth.name)
-    .catch((err) => console.error('[invite] email failed:', err));
+  // Await the email — don't fire-and-forget (serverless needs to stay alive)
+  let emailSent = false;
+  let emailError: string | null = null;
+  try {
+    await sendInviteEmail(cutter.email, cutter.name, token, auth.name);
+    emailSent = true;
+  } catch (err) {
+    emailError = err instanceof Error ? err.message : String(err);
+    console.error('[invite] email failed:', emailError);
+  }
 
-  return NextResponse.json({ success: true, email: cutter.email, token });
+  return NextResponse.json({
+    success: true,
+    email: cutter.email,
+    token,
+    email_sent: emailSent,
+    email_error: emailError,
+  });
 }
