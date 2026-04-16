@@ -19,7 +19,7 @@ interface TursoResult {
 async function tursoExecute(sql: string, args: SqlValue[] = []): Promise<TursoResult> {
   const mappedArgs = args.map((v) => {
     if (v === null) return { type: 'null' };
-    if (typeof v === 'number') return { type: Number.isInteger(v) ? 'integer' : 'float', value: String(v) };
+    if (typeof v === 'number') return { type: Number.isInteger(v) ? 'integer' : 'float', value: v };
     return { type: 'text', value: String(v) };
   });
 
@@ -78,7 +78,7 @@ async function tursoTransaction(
         sql: s.sql,
         args: (s.args ?? []).map((v) => {
           if (v === null) return { type: 'null' };
-          if (typeof v === 'number') return { type: Number.isInteger(v) ? 'integer' : 'float', value: String(v) };
+          if (typeof v === 'number') return { type: Number.isInteger(v) ? 'integer' : 'float', value: v };
           return { type: 'text', value: String(v) };
         }),
       },
