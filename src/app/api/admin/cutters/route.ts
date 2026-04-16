@@ -141,3 +141,39 @@ export async function PATCH(request: NextRequest) {
   // Audit log for new cutter creation via POST fallback
   return NextResponse.json({ success: true });
 }
+
+export async function DELETE(request: NextRequest) {
+  const auth = await requirePermission(request, 'USER_MANAGE');
+  if (!isCutter(auth)) return auth;
+
+  const { id } = await request.json();
+  if (!id) return NextResponse.json({ error: 'ID erforderlich' }, { status: 400 });
+
+  // Prevent self-deletion
+  if (id === auth.id) {
+    return NextResponse.json({ error: 'Du kannst dich nicht selbst löschen' }, { status: 403 });
+  }
+
+  const db = await ensureDb();
+
+  // Delete in dependency order
+  await db.execute({ sql: `DELETE FROM cutter_video_snapshots WHERE video_id IN (SELECT id FROM cutter_videos WHERE cutter_id = ?)`, args: [id] });
+  await db.execute({ sql: `DELETE FROM cutter_video_attributes WHERE video_id IN (SELECT id FROM cutter_videos WHERE cutter_id = ?)`, args: [id] });
+  await db.execute({ sql: `DELETE FROM cutter_notes WHERE video_id IN (SELECT id FROM cutter_videos WHERE cutter_id = ?)`, args: [id] });
+  await db.execute({ sql: `DELETE FROM cutter_invoice_items WHERE invoice_id IN (SELECT id FROM cutter_invoices WHERE cutter_id = ?)`, args: [id] });
+  await db.execute({ sql: `DELETE FROM cutter_invoices WHERE cutter_id = ?`, args: [id] });
+  await db.execute({ sql: `DELETE FROM cutter_videos WHERE cutter_id = ?`, args: [id] });
+  await db.execute({ sql: `DELETE FROM cutter_accounts WHERE cutter_id = ?`, args: [id] });
+  await db.execute({ sql: `DELETE FROM cutter_notifications WHERE cutter_id = ?`, args: [id] });
+  await db.execute({ sql: `DELETE FROM cutters WHERE id = ?`, args: [id] });
+
+  writeAuditLog(db, {
+    actorId: auth.id,
+    actorName: auth.name,
+    action: 'cutter_delete',
+    entityType: 'cutter',
+    entityId: id,
+  }).catch((err) => console.error('[audit]', err));
+
+  return NextResponse.json({ success: true });
+}

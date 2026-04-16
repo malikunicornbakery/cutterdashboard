@@ -10,6 +10,7 @@ export type AuditAction =
   | 'cutter_deactivate'
   | 'cutter_reactivate'
   | 'cutter_create'
+  | 'cutter_delete'
   | 'alert_resolve'
   | 'alert_dismiss'
   | 'proof_approve'

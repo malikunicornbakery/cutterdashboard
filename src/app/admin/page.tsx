@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { CutterNav } from "@/components/cutter-nav";
-import { UserPlus, Activity, RefreshCw, Youtube, Clock, AlertCircle, CheckCircle2 } from "lucide-react";
+import { UserPlus, Activity, RefreshCw, Youtube, Clock, AlertCircle, CheckCircle2, Trash2, Mail } from "lucide-react";
 
 interface Cutter {
   id: string;
@@ -78,6 +78,9 @@ export default function CutterAdminPage() {
   const [scrapeStatus, setScrapeStatus] = useState<ScrapeStatus | null>(null);
   const [syncLogs, setSyncLogs] = useState<SyncLog[]>([]);
   const [syncing, setSyncing] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [invitingId, setInvitingId] = useState<string | null>(null);
+  const [inviteSent, setInviteSent] = useState<string | null>(null); // cutter id that got invite
 
   function loadSyncLogs() {
     fetch("/api/admin/sync")
@@ -176,6 +179,36 @@ export default function CutterAdminPage() {
     loadAll();
   }
 
+  async function handleDeleteCutter(id: string, name: string) {
+    if (!confirm(`${name} wirklich löschen? Alle Videos, Rechnungen und Accounts werden permanent gelöscht.`)) return;
+    setDeletingId(id);
+    try {
+      await fetch("/api/admin/cutters", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      });
+      await loadAll();
+    } finally {
+      setDeletingId(null);
+    }
+  }
+
+  async function handleInviteCutter(id: string) {
+    setInvitingId(id);
+    try {
+      const res = await fetch(`/api/admin/cutters/${id}/invite`, { method: "POST" });
+      if (res.ok) {
+        setInviteSent(id);
+        setTimeout(() => setInviteSent(null), 3000);
+      } else {
+        alert("Einladung fehlgeschlagen");
+      }
+    } finally {
+      setInvitingId(null);
+    }
+  }
+
   return (
     <>
       <CutterNav />
@@ -266,6 +299,7 @@ export default function CutterAdminPage() {
                     <th className="px-4 py-3 font-medium text-right">Views</th>
                     <th className="px-4 py-3 font-medium text-right">Abgerechnet</th>
                     <th className="px-4 py-3 font-medium text-center">Aktiv</th>
+                    <th className="px-4 py-3 font-medium text-right">Aktionen</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
@@ -313,6 +347,30 @@ export default function CutterAdminPage() {
                         >
                           {c.is_active ? "Aktiv" : "Inaktiv"}
                         </button>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center justify-end gap-1">
+                          <button
+                            onClick={() => handleInviteCutter(c.id)}
+                            disabled={invitingId === c.id}
+                            title="Einladung schicken"
+                            className={`flex h-7 w-7 items-center justify-center rounded transition-colors ${
+                              inviteSent === c.id
+                                ? "bg-emerald-500/10 text-emerald-400"
+                                : "hover:bg-muted text-muted-foreground hover:text-foreground"
+                            } disabled:opacity-50`}
+                          >
+                            <Mail className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteCutter(c.id, c.name)}
+                            disabled={deletingId === c.id}
+                            title="Cutter löschen"
+                            className="flex h-7 w-7 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-red-500/10 hover:text-red-400 disabled:opacity-50"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
