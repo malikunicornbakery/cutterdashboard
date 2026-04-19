@@ -178,38 +178,56 @@ function ClaimedViewsCell({ video, onUpdate, mobile }: { video: VideoRow; onUpda
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState(video.claimed_views?.toString() ?? "");
   const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState(false);
 
   async function save() {
     setSaving(true);
+    setError(false);
     const parsed = value.trim() === "" ? null : parseInt(value, 10);
-    if (parsed !== null && (isNaN(parsed) || parsed < 0)) { setSaving(false); return; }
+    if (parsed !== null && (isNaN(parsed) || parsed < 0)) { setSaving(false); setError(true); return; }
     const res = await fetch(`/api/videos/${video.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ claimed_views: parsed }),
     });
-    if (res.ok) { onUpdate(video.id, parsed); setEditing(false); }
     setSaving(false);
+    if (res.ok) {
+      onUpdate(video.id, parsed);
+      setEditing(false);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+    } else {
+      setError(true);
+    }
   }
 
   if (mobile) {
     return (
-      <div className="flex items-center gap-2">
-        <input
-          type="number"
-          inputMode="numeric"
-          value={value}
-          onChange={(e) => setValue(e.target.value)}
-          placeholder="Views eingeben…"
-          className="flex-1 h-11 rounded-xl border border-border bg-background px-4 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
-        />
-        <button
-          onClick={save}
-          disabled={saving}
-          className="h-11 px-4 rounded-xl bg-primary text-primary-foreground text-sm font-medium disabled:opacity-50"
-        >
-          {saving ? "…" : "OK"}
-        </button>
+      <div className="space-y-2">
+        <div className="flex items-center gap-2">
+          <input
+            type="number"
+            inputMode="numeric"
+            value={value}
+            onChange={(e) => { setValue(e.target.value); setSaved(false); setError(false); }}
+            placeholder="Views eingeben…"
+            className={`flex-1 h-11 rounded-xl border px-4 text-sm outline-none focus:ring-2 focus:ring-primary/20 bg-background transition-colors ${
+              error ? "border-red-500 focus:border-red-500" : saved ? "border-emerald-500 focus:border-emerald-500" : "border-border focus:border-primary"
+            }`}
+          />
+          <button
+            onClick={save}
+            disabled={saving}
+            className={`h-11 px-5 rounded-xl text-sm font-semibold transition-colors disabled:opacity-50 ${
+              saved ? "bg-emerald-500 text-white" : "bg-primary text-primary-foreground"
+            }`}
+          >
+            {saving ? "…" : saved ? "✓" : "OK"}
+          </button>
+        </div>
+        {saved && <p className="text-xs text-emerald-400 font-medium">✓ Gespeichert!</p>}
+        {error && <p className="text-xs text-red-400">Fehler — bitte nochmal versuchen.</p>}
       </div>
     );
   }
@@ -251,15 +269,26 @@ function ClaimedViewsCell({ video, onUpdate, mobile }: { video: VideoRow; onUpda
 function ProofCell({ video, onReload, mobile }: { video: VideoRow; onReload: () => void; mobile?: boolean }) {
   const [uploading, setUploading] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [uploadDone, setUploadDone] = useState(false);
+  const [uploadError, setUploadError] = useState(false);
 
   async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
     setUploading(true);
+    setUploadDone(false);
+    setUploadError(false);
     const fd = new FormData();
     fd.append("file", file);
-    await fetch(`/api/videos/${video.id}/proof`, { method: "POST", body: fd });
+    const res = await fetch(`/api/videos/${video.id}/proof`, { method: "POST", body: fd });
     setUploading(false);
+    if (res.ok) {
+      setUploadDone(true);
+      setTimeout(() => setUploadDone(false), 4000);
+    } else {
+      setUploadError(true);
+      setTimeout(() => setUploadError(false), 4000);
+    }
     onReload();
     e.target.value = "";
   }
@@ -274,17 +303,33 @@ function ProofCell({ video, onReload, mobile }: { video: VideoRow; onReload: () 
   const status = video.proof_status;
 
   const uploadClass = mobile
-    ? "flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl border-2 border-dashed border-border bg-muted/30 py-4 text-sm text-muted-foreground hover:border-primary/40 hover:text-foreground hover:bg-accent/30 transition-all active:scale-[0.98]"
+    ? `flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl border-2 border-dashed py-4 text-sm transition-all active:scale-[0.98] ${
+        uploadDone ? "border-emerald-500 bg-emerald-500/10 text-emerald-400" :
+        uploadError ? "border-red-500 bg-red-500/10 text-red-400" :
+        "border-border bg-muted/30 text-muted-foreground hover:border-primary/40 hover:text-foreground hover:bg-accent/30"
+      }`
     : "flex cursor-pointer items-center gap-1.5 rounded-lg border border-border bg-muted/50 px-2.5 py-1 text-xs text-muted-foreground hover:border-primary/30 hover:text-foreground hover:bg-accent transition-all";
 
   // No proof / reset state
   if (!status || status === "no_proof_needed" || status === "none") {
     return (
-      <label className={uploadClass}>
-        {uploading ? <RefreshCw className={mobile ? "h-5 w-5 animate-spin" : "h-3.5 w-3.5 animate-spin"} /> : <Upload className={mobile ? "h-5 w-5" : "h-3.5 w-3.5"} />}
-        {mobile ? "Screenshot auswählen / Foto aufnehmen" : "Hochladen"}
-        <input type="file" accept="image/jpeg,image/png,image/webp,image/*" className="sr-only" onChange={handleFileChange} disabled={uploading} />
-      </label>
+      <div className="space-y-1.5">
+        <label className={uploadClass}>
+          {uploading
+            ? <RefreshCw className={mobile ? "h-5 w-5 animate-spin" : "h-3.5 w-3.5 animate-spin"} />
+            : uploadDone
+            ? <Check className={mobile ? "h-5 w-5" : "h-3.5 w-3.5"} />
+            : <Upload className={mobile ? "h-5 w-5" : "h-3.5 w-3.5"} />}
+          {mobile
+            ? uploading ? "Wird hochgeladen…"
+              : uploadDone ? "✓ Screenshot erfolgreich hochgeladen!"
+              : uploadError ? "Fehler — nochmal antippen"
+              : "Screenshot auswählen / Foto aufnehmen"
+            : "Hochladen"}
+          <input type="file" accept="image/jpeg,image/png,image/webp,image/*" className="sr-only" onChange={handleFileChange} disabled={uploading} />
+        </label>
+        {mobile && uploadError && <p className="text-xs text-red-400">Upload fehlgeschlagen — bitte nochmal versuchen.</p>}
+      </div>
     );
   }
 
