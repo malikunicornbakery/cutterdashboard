@@ -425,6 +425,16 @@ export default function CutterVideosPage() {
       .finally(() => setLoading(false));
   }
 
+  // Silent reload — updates data in background without showing skeleton
+  function reloadSilent() {
+    fetch("/api/videos")
+      .then((r) => {
+        if (r.status === 401) { router.push("/login"); return null; }
+        return r.json();
+      })
+      .then((data) => { if (data?.videos) setVideos(data.videos); });
+  }
+
   useEffect(() => { loadVideos(); }, []);
 
   function handleClaimedUpdate(id: string, val: number | null) {
@@ -553,7 +563,7 @@ export default function CutterVideosPage() {
                     {/* Proof upload — full width button */}
                     <div>
                       <p className="text-xs text-muted-foreground mb-1.5">Nachweis (Screenshot)</p>
-                      <ProofCell video={v} onReload={loadVideos} mobile />
+                      <ProofCell video={v} onReload={reloadSilent} mobile />
                     </div>
 
                     {/* Link */}
@@ -621,7 +631,7 @@ export default function CutterVideosPage() {
                             ? <span className="font-semibold text-primary tabular-nums">+{formatNum(v.unbilled_views)}</span>
                             : <span className="text-muted-foreground text-xs">—</span>}
                         </td>
-                        <td className="px-4 py-3.5"><ProofCell video={v} onReload={loadVideos} /></td>
+                        <td className="px-4 py-3.5"><ProofCell video={v} onReload={reloadSilent} /></td>
                         <td className="px-4 py-3.5">
                           <button onClick={() => handleDelete(v.id)}
                             className="rounded-lg p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors">
