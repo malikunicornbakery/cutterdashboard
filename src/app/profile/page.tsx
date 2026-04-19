@@ -269,16 +269,19 @@ export default function CutterProfilePage() {
             </div>
             <div className="flex items-center justify-between rounded-lg bg-muted/30 px-4 py-3">
               <div>
-                <p className="text-xs text-muted-foreground">Rate pro View</p>
-                <p className="text-lg font-bold">
-                  {new Intl.NumberFormat("de-DE", {
-                    style: "currency", currency: "EUR", minimumFractionDigits: 4,
-                  }).format(profile.rate_per_view)}
+                <p className="text-xs text-muted-foreground mb-1">Deine Rate</p>
+                <p className="text-2xl font-black tabular-nums">
+                  {new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(profile.rate_per_view * 1000)}
+                  <span className="text-sm font-normal text-muted-foreground ml-1">/ 1.000 Views</span>
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  = {new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR", minimumFractionDigits: 4 }).format(profile.rate_per_view)} pro View
                 </p>
               </div>
-              <p className="text-xs text-muted-foreground max-w-[180px] text-right">
-                Wird vom Admin festgelegt und kann nicht selbst geändert werden.
-              </p>
+              <div className="flex items-center gap-1.5 rounded-md bg-muted/50 px-2.5 py-1.5">
+                <ShieldCheck className="h-3.5 w-3.5 text-muted-foreground" />
+                <p className="text-xs text-muted-foreground">Vom Admin festgelegt</p>
+              </div>
             </div>
           </div>
 

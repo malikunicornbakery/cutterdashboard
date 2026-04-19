@@ -451,6 +451,16 @@ export default function CutterDashboard() {
               <StatCard icon={<Eye className="h-3.5 w-3.5" />} label="Gesamte Views" value={formatNum(stats.totalViews)} />
               <StatCard icon={<Euro className="h-3.5 w-3.5" />} label="Gesamtverdienst" value={formatEur(stats.totalEarnings)} />
               <StatCard icon={<TrendingUp className="h-3.5 w-3.5" />} label="Letzte 30 Tage" value={formatEur(stats.earnings30d)} />
+              <div className="rounded-xl border border-border bg-card p-3 flex flex-col gap-2 col-span-2 sm:col-span-4">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-muted-foreground/60"><Euro className="h-3.5 w-3.5" /></span>
+                  <span className="text-xs text-muted-foreground leading-none">Deine Rate</span>
+                </div>
+                <p className="text-base font-bold tabular-nums leading-none">
+                  {new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(stats.ratePerView * 1000)}
+                  <span className="text-xs font-normal text-muted-foreground ml-1">/ 1.000 Views</span>
+                </p>
+              </div>
             </div>
             {/* Right: Reliability score */}
             <div className="lg:col-span-1">
