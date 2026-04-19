@@ -283,7 +283,7 @@ function ProofCell({ video, onReload, mobile }: { video: VideoRow; onReload: () 
       <label className={uploadClass}>
         {uploading ? <RefreshCw className={mobile ? "h-5 w-5 animate-spin" : "h-3.5 w-3.5 animate-spin"} /> : <Upload className={mobile ? "h-5 w-5" : "h-3.5 w-3.5"} />}
         {mobile ? "Screenshot auswählen / Foto aufnehmen" : "Hochladen"}
-        <input type="file" accept="image/jpeg,image/png,image/webp,image/*" capture={mobile ? "environment" : undefined} className="sr-only" onChange={handleFileChange} disabled={uploading} />
+        <input type="file" accept="image/jpeg,image/png,image/webp,image/*" className="sr-only" onChange={handleFileChange} disabled={uploading} />
       </label>
     );
   }
@@ -301,7 +301,7 @@ function ProofCell({ video, onReload, mobile }: { video: VideoRow; onReload: () 
         }>
           {uploading ? <RefreshCw className={mobile ? "h-5 w-5 animate-spin" : "h-3.5 w-3.5 animate-spin"} /> : <Upload className={mobile ? "h-5 w-5" : "h-3.5 w-3.5"} />}
           {mobile ? "Jetzt Screenshot hochladen" : "Jetzt hochladen"}
-          <input type="file" accept="image/jpeg,image/png,image/webp,image/*" capture={mobile ? "environment" : undefined} className="sr-only" onChange={handleFileChange} disabled={uploading} />
+          <input type="file" accept="image/jpeg,image/png,image/webp,image/*" className="sr-only" onChange={handleFileChange} disabled={uploading} />
         </label>
       </div>
     );
