@@ -174,7 +174,7 @@ function DiscrepancyBadge({ status, percent }: { status: string | null; percent:
 }
 
 // ── Claimed Views Cell ────────────────────────────────────────
-function ClaimedViewsCell({ video, onUpdate }: { video: VideoRow; onUpdate: (id: string, val: number | null) => void }) {
+function ClaimedViewsCell({ video, onUpdate, mobile }: { video: VideoRow; onUpdate: (id: string, val: number | null) => void; mobile?: boolean }) {
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState(video.claimed_views?.toString() ?? "");
   const [saving, setSaving] = useState(false);
@@ -190,6 +190,28 @@ function ClaimedViewsCell({ video, onUpdate }: { video: VideoRow; onUpdate: (id:
     });
     if (res.ok) { onUpdate(video.id, parsed); setEditing(false); }
     setSaving(false);
+  }
+
+  if (mobile) {
+    return (
+      <div className="flex items-center gap-2">
+        <input
+          type="number"
+          inputMode="numeric"
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          placeholder="Views eingeben…"
+          className="flex-1 h-11 rounded-xl border border-border bg-background px-4 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+        />
+        <button
+          onClick={save}
+          disabled={saving}
+          className="h-11 px-4 rounded-xl bg-primary text-primary-foreground text-sm font-medium disabled:opacity-50"
+        >
+          {saving ? "…" : "OK"}
+        </button>
+      </div>
+    );
   }
 
   if (editing) {
@@ -226,7 +248,7 @@ function ClaimedViewsCell({ video, onUpdate }: { video: VideoRow; onUpdate: (id:
 }
 
 // ── Proof Cell ────────────────────────────────────────────────
-function ProofCell({ video, onReload }: { video: VideoRow; onReload: () => void }) {
+function ProofCell({ video, onReload, mobile }: { video: VideoRow; onReload: () => void; mobile?: boolean }) {
   const [uploading, setUploading] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
@@ -251,13 +273,17 @@ function ProofCell({ video, onReload }: { video: VideoRow; onReload: () => void 
 
   const status = video.proof_status;
 
+  const uploadClass = mobile
+    ? "flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl border-2 border-dashed border-border bg-muted/30 py-4 text-sm text-muted-foreground hover:border-primary/40 hover:text-foreground hover:bg-accent/30 transition-all active:scale-[0.98]"
+    : "flex cursor-pointer items-center gap-1.5 rounded-lg border border-border bg-muted/50 px-2.5 py-1 text-xs text-muted-foreground hover:border-primary/30 hover:text-foreground hover:bg-accent transition-all";
+
   // No proof / reset state
   if (!status || status === "no_proof_needed" || status === "none") {
     return (
-      <label className="flex cursor-pointer items-center gap-1.5 rounded-lg border border-border bg-muted/50 px-2.5 py-1 text-xs text-muted-foreground hover:border-primary/30 hover:text-foreground hover:bg-accent transition-all">
-        {uploading ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
-        Hochladen
-        <input type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" onChange={handleFileChange} disabled={uploading} />
+      <label className={uploadClass}>
+        {uploading ? <RefreshCw className={mobile ? "h-5 w-5 animate-spin" : "h-3.5 w-3.5 animate-spin"} /> : <Upload className={mobile ? "h-5 w-5" : "h-3.5 w-3.5"} />}
+        {mobile ? "Screenshot auswählen / Foto aufnehmen" : "Hochladen"}
+        <input type="file" accept="image/jpeg,image/png,image/webp,image/*" capture={mobile ? "environment" : undefined} className="sr-only" onChange={handleFileChange} disabled={uploading} />
       </label>
     );
   }
@@ -269,10 +295,13 @@ function ProofCell({ video, onReload }: { video: VideoRow; onReload: () => void 
         <span className="rounded-md border border-orange-500/20 bg-orange-500/10 px-1.5 py-0.5 text-xs text-orange-400 font-medium">
           ⚠ Beleg angefordert
         </span>
-        <label className="flex cursor-pointer items-center gap-1.5 rounded-lg border border-primary/30 bg-primary/10 px-2.5 py-1 text-xs text-primary hover:bg-primary/20 transition-colors">
-          {uploading ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
-          Jetzt hochladen
-          <input type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" onChange={handleFileChange} disabled={uploading} />
+        <label className={mobile
+          ? "flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl border-2 border-dashed border-primary/40 bg-primary/5 py-4 text-sm text-primary hover:bg-primary/10 transition-colors active:scale-[0.98]"
+          : "flex cursor-pointer items-center gap-1.5 rounded-lg border border-primary/30 bg-primary/10 px-2.5 py-1 text-xs text-primary hover:bg-primary/20 transition-colors"
+        }>
+          {uploading ? <RefreshCw className={mobile ? "h-5 w-5 animate-spin" : "h-3.5 w-3.5 animate-spin"} /> : <Upload className={mobile ? "h-5 w-5" : "h-3.5 w-3.5"} />}
+          {mobile ? "Jetzt Screenshot hochladen" : "Jetzt hochladen"}
+          <input type="file" accept="image/jpeg,image/png,image/webp,image/*" capture={mobile ? "environment" : undefined} className="sr-only" onChange={handleFileChange} disabled={uploading} />
         </label>
       </div>
     );
@@ -418,92 +447,144 @@ export default function CutterVideosPage() {
             </Link>
           </div>
         ) : (
-          /* Table */
-          <div className="rounded-xl border border-border bg-card overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-border bg-muted/30 text-left">
-                    <th className="px-4 py-3 text-xs font-medium text-muted-foreground">Video</th>
-                    <th className="px-4 py-3 text-xs font-medium text-muted-foreground">Plattform</th>
-                    <th className="px-4 py-3 text-xs font-medium text-muted-foreground text-right">Views ✓</th>
-                    <th className="px-4 py-3 text-xs font-medium text-muted-foreground text-right">
-                      <span title="Deine gemeldeten Views — klicken zum Bearbeiten">Views ~</span>
-                    </th>
-                    <th className="px-4 py-3 text-xs font-medium text-muted-foreground">Clip-Status</th>
-                    <th className="px-4 py-3 text-xs font-medium text-muted-foreground">Zuletzt sync</th>
-                    <th className="px-4 py-3 text-xs font-medium text-muted-foreground text-right">Neu</th>
-                    <th className="px-4 py-3 text-xs font-medium text-muted-foreground">Nachweis</th>
-                    <th className="w-10 px-4 py-3"></th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
-                  {videos.map((v) => (
-                    <tr key={v.id} className={`hover:bg-accent/20 transition-colors ${getRowClass(v.discrepancy_status)}`}>
-                      <td className="max-w-xs px-4 py-3.5">
-                        <p className="truncate font-medium text-sm">{v.title || "Ohne Titel"}</p>
-                        <a
-                          href={v.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex items-center gap-1 truncate text-xs text-muted-foreground hover:text-primary transition-colors mt-0.5"
-                        >
-                          <span className="truncate max-w-[180px]">{v.url}</span>
-                          <ExternalLink className="h-3 w-3 shrink-0" />
-                        </a>
-                      </td>
-                      <td className="px-4 py-3.5">
-                        <span className={`rounded-md px-2 py-0.5 text-xs font-medium ${PLATFORM_COLORS[v.platform] || "bg-muted text-muted-foreground"}`}>
-                          {PLATFORM_LABELS[v.platform] || v.platform}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3.5 text-right font-semibold tabular-nums">
-                        {formatNum(v.current_views)}
-                      </td>
-                      <td className="px-4 py-3.5 text-right">
-                        <ClaimedViewsCell video={v} onUpdate={handleClaimedUpdate} />
-                      </td>
-                      <td className="px-4 py-3.5">
-                        {(() => {
-                          const s = getClipStatus(v);
-                          const cfg = STATUS_CONFIG[s];
-                          return (
-                            <span className={`inline-flex items-center rounded-md px-1.5 py-0.5 text-xs font-medium ${cfg.className}`}>
-                              {cfg.label}
-                            </span>
-                          );
-                        })()}
-                      </td>
-                      <td className="px-4 py-3.5 text-xs text-muted-foreground whitespace-nowrap">
-                        {formatRelativeTime(v.last_scraped_at)}
-                      </td>
-                      <td className="px-4 py-3.5 text-right">
-                        {v.unbilled_views > 0 ? (
-                          <span className="font-semibold text-primary tabular-nums">
-                            +{formatNum(v.unbilled_views)}
+          <>
+            {/* ── Mobile Cards (hidden on md+) ───────────────────── */}
+            <div className="md:hidden space-y-3">
+              {videos.map((v) => {
+                const s = getClipStatus(v);
+                const cfg = STATUS_CONFIG[s];
+                return (
+                  <div key={v.id} className={`rounded-xl border border-border bg-card p-4 ${getRowClass(v.discrepancy_status)}`}>
+                    {/* Title + platform */}
+                    <div className="flex items-start justify-between gap-2 mb-3">
+                      <div className="min-w-0 flex-1">
+                        <p className="font-semibold text-sm leading-tight mb-1">{v.title || "Ohne Titel"}</p>
+                        <div className="flex items-center gap-2">
+                          <span className={`rounded-md px-2 py-0.5 text-xs font-medium ${PLATFORM_COLORS[v.platform] || "bg-muted text-muted-foreground"}`}>
+                            {PLATFORM_LABELS[v.platform] || v.platform}
                           </span>
-                        ) : (
-                          <span className="text-muted-foreground text-xs">—</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3.5">
-                        <ProofCell video={v} onReload={loadVideos} />
-                      </td>
-                      <td className="px-4 py-3.5">
-                        <button
-                          onClick={() => handleDelete(v.id)}
-                          className="rounded-lg p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
-                          title="Video entfernen"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                          <span className={`inline-flex items-center rounded-md px-1.5 py-0.5 text-xs font-medium ${cfg.className}`}>
+                            {cfg.label}
+                          </span>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => handleDelete(v.id)}
+                        className="shrink-0 rounded-lg p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+
+                    {/* Stats row */}
+                    <div className="grid grid-cols-3 gap-2 mb-3">
+                      <div className="rounded-lg bg-muted/40 px-3 py-2">
+                        <p className="text-[10px] text-muted-foreground mb-0.5">Views ✓</p>
+                        <p className="text-sm font-bold tabular-nums">{formatNum(v.current_views)}</p>
+                      </div>
+                      <div className="rounded-lg bg-muted/40 px-3 py-2">
+                        <p className="text-[10px] text-muted-foreground mb-0.5">Abrechenbar</p>
+                        <p className={`text-sm font-bold tabular-nums ${v.unbilled_views > 0 ? "text-primary" : ""}`}>
+                          {v.unbilled_views > 0 ? `+${formatNum(v.unbilled_views)}` : "—"}
+                        </p>
+                      </div>
+                      <div className="rounded-lg bg-muted/40 px-3 py-2">
+                        <p className="text-[10px] text-muted-foreground mb-0.5">Sync</p>
+                        <p className="text-xs text-muted-foreground leading-tight pt-0.5">{formatRelativeTime(v.last_scraped_at)}</p>
+                      </div>
+                    </div>
+
+                    {/* Manual views input — big and easy to tap */}
+                    <div className="mb-3">
+                      <p className="text-xs text-muted-foreground mb-1.5">Meine Views (manuell)</p>
+                      <ClaimedViewsCell video={v} onUpdate={handleClaimedUpdate} mobile />
+                    </div>
+
+                    {/* Proof upload — full width button */}
+                    <div>
+                      <p className="text-xs text-muted-foreground mb-1.5">Nachweis (Screenshot)</p>
+                      <ProofCell video={v} onReload={loadVideos} mobile />
+                    </div>
+
+                    {/* Link */}
+                    <a
+                      href={v.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="mt-3 flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors"
+                    >
+                      <ExternalLink className="h-3 w-3 shrink-0" />
+                      <span className="truncate">{v.url}</span>
+                    </a>
+                  </div>
+                );
+              })}
             </div>
-          </div>
+
+            {/* ── Desktop Table (hidden on mobile) ──────────────── */}
+            <div className="hidden md:block rounded-xl border border-border bg-card overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-border bg-muted/30 text-left">
+                      <th className="px-4 py-3 text-xs font-medium text-muted-foreground">Video</th>
+                      <th className="px-4 py-3 text-xs font-medium text-muted-foreground">Plattform</th>
+                      <th className="px-4 py-3 text-xs font-medium text-muted-foreground text-right">Views ✓</th>
+                      <th className="px-4 py-3 text-xs font-medium text-muted-foreground text-right">
+                        <span title="Deine gemeldeten Views — klicken zum Bearbeiten">Views ~</span>
+                      </th>
+                      <th className="px-4 py-3 text-xs font-medium text-muted-foreground">Clip-Status</th>
+                      <th className="px-4 py-3 text-xs font-medium text-muted-foreground">Zuletzt sync</th>
+                      <th className="px-4 py-3 text-xs font-medium text-muted-foreground text-right">Neu</th>
+                      <th className="px-4 py-3 text-xs font-medium text-muted-foreground">Nachweis</th>
+                      <th className="w-10 px-4 py-3"></th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {videos.map((v) => (
+                      <tr key={v.id} className={`hover:bg-accent/20 transition-colors ${getRowClass(v.discrepancy_status)}`}>
+                        <td className="max-w-xs px-4 py-3.5">
+                          <p className="truncate font-medium text-sm">{v.title || "Ohne Titel"}</p>
+                          <a href={v.url} target="_blank" rel="noopener noreferrer"
+                            className="flex items-center gap-1 truncate text-xs text-muted-foreground hover:text-primary transition-colors mt-0.5">
+                            <span className="truncate max-w-[180px]">{v.url}</span>
+                            <ExternalLink className="h-3 w-3 shrink-0" />
+                          </a>
+                        </td>
+                        <td className="px-4 py-3.5">
+                          <span className={`rounded-md px-2 py-0.5 text-xs font-medium ${PLATFORM_COLORS[v.platform] || "bg-muted text-muted-foreground"}`}>
+                            {PLATFORM_LABELS[v.platform] || v.platform}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3.5 text-right font-semibold tabular-nums">{formatNum(v.current_views)}</td>
+                        <td className="px-4 py-3.5 text-right">
+                          <ClaimedViewsCell video={v} onUpdate={handleClaimedUpdate} />
+                        </td>
+                        <td className="px-4 py-3.5">
+                          {(() => { const s = getClipStatus(v); const cfg = STATUS_CONFIG[s];
+                            return <span className={`inline-flex items-center rounded-md px-1.5 py-0.5 text-xs font-medium ${cfg.className}`}>{cfg.label}</span>;
+                          })()}
+                        </td>
+                        <td className="px-4 py-3.5 text-xs text-muted-foreground whitespace-nowrap">{formatRelativeTime(v.last_scraped_at)}</td>
+                        <td className="px-4 py-3.5 text-right">
+                          {v.unbilled_views > 0
+                            ? <span className="font-semibold text-primary tabular-nums">+{formatNum(v.unbilled_views)}</span>
+                            : <span className="text-muted-foreground text-xs">—</span>}
+                        </td>
+                        <td className="px-4 py-3.5"><ProofCell video={v} onReload={loadVideos} /></td>
+                        <td className="px-4 py-3.5">
+                          <button onClick={() => handleDelete(v.id)}
+                            className="rounded-lg p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors">
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </>
         )}
 
         {/* Helper text */}
