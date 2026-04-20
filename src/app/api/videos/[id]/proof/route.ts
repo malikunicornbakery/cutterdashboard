@@ -33,7 +33,6 @@ async function ensureProofFilesTable(db: DbClient) {
     args: [],
   });
 
-  // Migrate existing tables that may be missing the new columns
   const migrations = [
     `ALTER TABLE cutter_proof_files ADD COLUMN proof_status  TEXT NOT NULL DEFAULT 'uploaded'`,
     `ALTER TABLE cutter_proof_files ADD COLUMN uploader_note TEXT`,
@@ -48,7 +47,7 @@ async function ensureProofFilesTable(db: DbClient) {
   }
 }
 
-// ── GET: list all proof files for a clip ─────────────────────────
+// ── GET: return the single active proof for this clip (or null) ──
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -69,36 +68,38 @@ export async function GET(
 
   await ensureProofFilesTable(db);
 
-  const filesResult = await db.execute({
+  const fileResult = await db.execute({
     sql: `SELECT id, file_url, file_name, file_size, mime_type, uploaded_at,
                  proof_status, uploader_note, reviewed_by_name, reviewed_at, review_note
           FROM cutter_proof_files
           WHERE video_id = ? AND cutter_id = ?
-          ORDER BY display_order ASC, uploaded_at ASC`,
+          ORDER BY uploaded_at DESC LIMIT 1`,
     args: [videoId, auth.id],
   });
 
-  const files = filesResult.rows.map((row) => {
-    const r = row as unknown as Record<string, unknown>;
-    return {
-      id:               r.id              as string,
-      file_url:         r.file_url        as string,
-      file_name:        r.file_name       as string | null,
-      file_size:        r.file_size       as number | null,
-      mime_type:        r.mime_type       as string | null,
-      uploaded_at:      r.uploaded_at     as string,
-      proof_status:     r.proof_status    as string | null,
-      uploader_note:    r.uploader_note   as string | null,
-      reviewed_by_name: r.reviewed_by_name as string | null,
-      reviewed_at:      r.reviewed_at     as string | null,
-      review_note:      r.review_note     as string | null,
-    };
-  });
+  if (!fileResult.rows[0]) {
+    return NextResponse.json({ proof: null });
+  }
 
-  return NextResponse.json({ files });
+  const r = fileResult.rows[0] as unknown as Record<string, unknown>;
+  const proof = {
+    id:               r.id              as string,
+    file_url:         r.file_url        as string,
+    file_name:        r.file_name       as string | null,
+    file_size:        r.file_size       as number | null,
+    mime_type:        r.mime_type       as string | null,
+    uploaded_at:      r.uploaded_at     as string,
+    proof_status:     r.proof_status    as string | null,
+    uploader_note:    r.uploader_note   as string | null,
+    reviewed_by_name: r.reviewed_by_name as string | null,
+    reviewed_at:      r.reviewed_at     as string | null,
+    review_note:      r.review_note     as string | null,
+  };
+
+  return NextResponse.json({ proof });
 }
 
-// ── POST: upload one proof file ──────────────────────────────────
+// ── POST: upload the one proof for this clip ─────────────────────
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -119,12 +120,26 @@ export async function POST(
 
   if (!video) return NextResponse.json({ error: 'Video nicht gefunden' }, { status: 404 });
   if (video.proof_status === 'proof_approved') {
-    return NextResponse.json({ error: 'Beleg wurde bereits genehmigt' }, { status: 400 });
+    return NextResponse.json({ error: 'Beleg wurde bereits genehmigt und kann nicht ersetzt werden' }, { status: 400 });
   }
 
-  const formData  = await request.formData();
-  const file      = formData.get('file') as File | null;
-  const note      = (formData.get('note') as string | null)?.trim() ?? null;
+  await ensureProofFilesTable(db);
+
+  // ── Enforce one-proof rule ──────────────────────────────────────
+  const existingResult = await db.execute({
+    sql: `SELECT id FROM cutter_proof_files WHERE video_id = ?`,
+    args: [videoId],
+  });
+  if (existingResult.rows.length > 0) {
+    return NextResponse.json(
+      { error: 'Für diesen Clip existiert bereits ein Nachweis. Bitte zuerst den vorhandenen Nachweis löschen.' },
+      { status: 400 }
+    );
+  }
+
+  const formData = await request.formData();
+  const file     = formData.get('file') as File | null;
+  const note     = (formData.get('note') as string | null)?.trim() ?? null;
 
   if (!file) return NextResponse.json({ error: 'Keine Datei hochgeladen' }, { status: 400 });
   if (file.size > 20 * 1024 * 1024) {
@@ -147,33 +162,25 @@ export async function POST(
     access: 'public', contentType: fileType,
   });
 
-  await ensureProofFilesTable(db);
-
-  const countResult = await db.execute({
-    sql: `SELECT COUNT(*) as cnt FROM cutter_proof_files WHERE video_id = ?`,
-    args: [videoId],
-  });
-  const displayOrder = Number((countResult.rows[0] as unknown as Record<string, unknown>)?.cnt ?? 0);
-
   await db.execute({
     sql: `INSERT INTO cutter_proof_files
             (id, video_id, cutter_id, file_url, file_name, file_size, mime_type,
              display_order, proof_status, uploader_note)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'uploaded', ?)`,
-    args: [fileId, videoId, auth.id, blob.url, file.name || null, file.size, fileType, displayOrder, note],
+          VALUES (?, ?, ?, ?, ?, ?, ?, 0, 'uploaded', ?)`,
+    args: [fileId, videoId, auth.id, blob.url, file.name || null, file.size, fileType, note],
   });
 
-  // Update cutter_videos: proof_url = latest, reset review state
+  // Update cutter_videos proof fields
   await db.execute({
     sql: `UPDATE cutter_videos
-          SET proof_url            = ?,
-              proof_uploaded_at    = datetime('now'),
-              proof_status         = 'proof_submitted',
-              proof_cutter_note    = COALESCE(?, proof_cutter_note),
+          SET proof_url              = ?,
+              proof_uploaded_at      = datetime('now'),
+              proof_status           = 'proof_submitted',
+              proof_cutter_note      = COALESCE(?, proof_cutter_note),
               proof_rejection_reason = NULL,
-              proof_reviewer_id    = NULL,
-              proof_reviewer_name  = NULL,
-              proof_reviewed_at    = NULL
+              proof_reviewer_id      = NULL,
+              proof_reviewer_name    = NULL,
+              proof_reviewed_at      = NULL
           WHERE id = ?`,
     args: [blob.url, note, videoId],
   });
@@ -199,7 +206,7 @@ export async function POST(
   return NextResponse.json({ proof_url: blob.url, file_id: fileId });
 }
 
-// ── DELETE: remove one file (?fileId=) or all files ──────────────
+// ── DELETE: remove the proof for this clip ───────────────────────
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -208,7 +215,6 @@ export async function DELETE(
   if (!isCutter(auth)) return auth;
 
   const { id: videoId } = await params;
-  const fileId = new URL(request.url).searchParams.get('fileId');
   const db = await ensureDb();
 
   const videoResult = await db.execute({
@@ -226,53 +232,29 @@ export async function DELETE(
 
   await ensureProofFilesTable(db);
 
-  if (fileId) {
-    const fileResult = await db.execute({
-      sql: `SELECT id, file_url, proof_status FROM cutter_proof_files WHERE id = ? AND video_id = ? AND cutter_id = ?`,
-      args: [fileId, videoId, auth.id],
-    });
-    const fileRow = fileResult.rows[0] as unknown as { id: string; file_url: string; proof_status: string } | undefined;
-    if (!fileRow) return NextResponse.json({ error: 'Datei nicht gefunden' }, { status: 404 });
-    if (fileRow.proof_status === 'approved') {
-      return NextResponse.json({ error: 'Genehmigte Datei kann nicht entfernt werden' }, { status: 400 });
-    }
-    try { await del(fileRow.file_url); } catch { /* ignore */ }
-    await db.execute({ sql: `DELETE FROM cutter_proof_files WHERE id = ?`, args: [fileId] });
+  // Delete the one proof file record for this video
+  const fileResult = await db.execute({
+    sql: `SELECT id, file_url FROM cutter_proof_files WHERE video_id = ? AND cutter_id = ? LIMIT 1`,
+    args: [videoId, auth.id],
+  });
+  const fileRow = fileResult.rows[0] as unknown as { id: string; file_url: string } | undefined;
 
-    const remainingResult = await db.execute({
-      sql: `SELECT id, file_url FROM cutter_proof_files WHERE video_id = ?
-            ORDER BY display_order ASC, uploaded_at ASC LIMIT 1`,
-      args: [videoId],
-    });
-    const first = remainingResult.rows[0] as unknown as { id: string; file_url: string } | undefined;
-    if (first) {
-      await db.execute({ sql: `UPDATE cutter_videos SET proof_url = ? WHERE id = ?`, args: [first.file_url, videoId] });
-    } else {
-      await db.execute({
-        sql: `UPDATE cutter_videos SET proof_url = NULL, proof_uploaded_at = NULL,
-              proof_status = 'no_proof_needed', proof_cutter_note = NULL, proof_rejection_reason = NULL
-              WHERE id = ?`,
-        args: [videoId],
-      });
-    }
-  } else {
-    const allFilesResult = await db.execute({
-      sql: `SELECT file_url FROM cutter_proof_files WHERE video_id = ? AND cutter_id = ?`,
-      args: [videoId, auth.id],
-    });
-    for (const row of allFilesResult.rows) {
-      const r = row as unknown as { file_url: string };
-      try { await del(r.file_url); } catch { /* ignore */ }
-    }
-    await db.execute({ sql: `DELETE FROM cutter_proof_files WHERE video_id = ? AND cutter_id = ?`, args: [videoId, auth.id] });
-    if (video.proof_url) try { await del(video.proof_url); } catch { /* ignore */ }
-    await db.execute({
-      sql: `UPDATE cutter_videos SET proof_url = NULL, proof_uploaded_at = NULL,
-            proof_status = 'no_proof_needed', proof_cutter_note = NULL, proof_rejection_reason = NULL
-            WHERE id = ?`,
-      args: [videoId],
-    });
+  if (fileRow) {
+    try { await del(fileRow.file_url); } catch { /* ignore blob errors */ }
+    await db.execute({ sql: `DELETE FROM cutter_proof_files WHERE id = ?`, args: [fileRow.id] });
   }
+
+  // Clear proof fields on cutter_videos
+  await db.execute({
+    sql: `UPDATE cutter_videos
+          SET proof_url              = NULL,
+              proof_uploaded_at      = NULL,
+              proof_status           = 'no_proof_needed',
+              proof_cutter_note      = NULL,
+              proof_rejection_reason = NULL
+          WHERE id = ?`,
+    args: [videoId],
+  });
 
   return NextResponse.json({ success: true });
 }

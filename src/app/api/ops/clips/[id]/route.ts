@@ -171,7 +171,7 @@ export async function GET(
                     proof_status, uploader_note,
                     reviewed_by_id, reviewed_by_name, reviewed_at, review_note
              FROM cutter_proof_files WHERE video_id = ?
-             ORDER BY display_order ASC, uploaded_at ASC`,
+             ORDER BY uploaded_at DESC LIMIT 1`,
             [id]
           )
         ),
@@ -199,20 +199,21 @@ export async function GET(
     meta: val(row[6]), created_at: val(row[7]),
   }));
 
-  const proofFiles = proofFilesResult.rows.map((row: unknown[]) => ({
-    id:               val(row[0]),
-    file_url:         val(row[1]),
-    file_name:        val(row[2]),
-    file_size:        intVal(row[3]),
-    mime_type:        val(row[4]),
-    uploaded_at:      val(row[5]),
-    proof_status:     val(row[6]),
-    uploader_note:    val(row[7]),
-    reviewed_by_id:   val(row[8]),
-    reviewed_by_name: val(row[9]),
-    reviewed_at:      val(row[10]),
-    review_note:      val(row[11]),
-  }));
+  const pfRow = proofFilesResult.rows[0] as unknown[] | undefined;
+  const proofFile = pfRow ? {
+    id:               val(pfRow[0]),
+    file_url:         val(pfRow[1]),
+    file_name:        val(pfRow[2]),
+    file_size:        intVal(pfRow[3]),
+    mime_type:        val(pfRow[4]),
+    uploaded_at:      val(pfRow[5]),
+    proof_status:     val(pfRow[6]),
+    uploader_note:    val(pfRow[7]),
+    reviewed_by_id:   val(pfRow[8]),
+    reviewed_by_name: val(pfRow[9]),
+    reviewed_at:      val(pfRow[10]),
+    review_note:      val(pfRow[11]),
+  } : null;
 
-  return NextResponse.json({ video, cutter, episode, snapshots, auditTrail, proofFiles });
+  return NextResponse.json({ video, cutter, episode, snapshots, auditTrail, proofFile });
 }
