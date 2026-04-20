@@ -154,15 +154,27 @@ export async function GET(
          ORDER BY created_at DESC LIMIT 30`,
         [id]
       ),
-      // Silently create table then query
-      dbQuery(ensureTableSql).then(() =>
-        dbQuery(
-          `SELECT id, file_url, file_name, file_size, mime_type, uploaded_at
-           FROM cutter_proof_files WHERE video_id = ?
-           ORDER BY display_order ASC, uploaded_at ASC`,
-          [id]
-        )
-      ),
+      // Silently create table then query (with all review fields)
+      dbQuery(ensureTableSql)
+        .then(() => Promise.all([
+          dbQuery(`ALTER TABLE cutter_proof_files ADD COLUMN proof_status TEXT NOT NULL DEFAULT 'uploaded'`, []).catch(() => {}),
+          dbQuery(`ALTER TABLE cutter_proof_files ADD COLUMN uploader_note TEXT`, []).catch(() => {}),
+          dbQuery(`ALTER TABLE cutter_proof_files ADD COLUMN reviewed_by_id TEXT`, []).catch(() => {}),
+          dbQuery(`ALTER TABLE cutter_proof_files ADD COLUMN reviewed_by_name TEXT`, []).catch(() => {}),
+          dbQuery(`ALTER TABLE cutter_proof_files ADD COLUMN reviewed_at TEXT`, []).catch(() => {}),
+          dbQuery(`ALTER TABLE cutter_proof_files ADD COLUMN review_note TEXT`, []).catch(() => {}),
+          dbQuery(`ALTER TABLE cutter_proof_files ADD COLUMN updated_at TEXT DEFAULT (datetime('now'))`, []).catch(() => {}),
+        ]))
+        .then(() =>
+          dbQuery(
+            `SELECT id, file_url, file_name, file_size, mime_type, uploaded_at,
+                    proof_status, uploader_note,
+                    reviewed_by_id, reviewed_by_name, reviewed_at, review_note
+             FROM cutter_proof_files WHERE video_id = ?
+             ORDER BY display_order ASC, uploaded_at ASC`,
+            [id]
+          )
+        ),
     ]);
 
   const cr = cutterResult.rows[0] as unknown[];
@@ -188,8 +200,18 @@ export async function GET(
   }));
 
   const proofFiles = proofFilesResult.rows.map((row: unknown[]) => ({
-    id: val(row[0]), file_url: val(row[1]), file_name: val(row[2]),
-    file_size: intVal(row[3]), mime_type: val(row[4]), uploaded_at: val(row[5]),
+    id:               val(row[0]),
+    file_url:         val(row[1]),
+    file_name:        val(row[2]),
+    file_size:        intVal(row[3]),
+    mime_type:        val(row[4]),
+    uploaded_at:      val(row[5]),
+    proof_status:     val(row[6]),
+    uploader_note:    val(row[7]),
+    reviewed_by_id:   val(row[8]),
+    reviewed_by_name: val(row[9]),
+    reviewed_at:      val(row[10]),
+    review_note:      val(row[11]),
   }));
 
   return NextResponse.json({ video, cutter, episode, snapshots, auditTrail, proofFiles });

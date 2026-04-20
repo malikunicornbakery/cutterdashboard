@@ -9,6 +9,7 @@ import { ClipAttributesPanel } from "@/components/clip-attributes-panel";
 import {
   ArrowLeft, Flag, FlagOff, CheckCircle2, ShieldCheck,
   FileText, RefreshCw, ExternalLink, X, ZoomIn,
+  ChevronLeft, ChevronRight,
 } from "lucide-react";
 
 interface ProofFile {
@@ -18,6 +19,12 @@ interface ProofFile {
   file_size: number | null;
   mime_type: string | null;
   uploaded_at: string | null;
+  proof_status: string | null;
+  uploader_note: string | null;
+  reviewed_by_id: string | null;
+  reviewed_by_name: string | null;
+  reviewed_at: string | null;
+  review_note: string | null;
 }
 
 interface VideoDetail {
@@ -153,84 +160,268 @@ function formatBytes(n: number | null): string {
   return `${n} B`;
 }
 
-// ── Proof Gallery ──────────────────────────────────────────────────
-function ProofGallery({ files, proofUrl }: { files: ProofFile[]; proofUrl: string | null }) {
-  const [lightbox, setLightbox] = useState<string | null>(null);
+// ── Per-proof status config ────────────────────────────────────────
+const FILE_STATUS_CFG: Record<string, { label: string; cls: string }> = {
+  uploaded:     { label: "Neu",         cls: "bg-blue-500/10 text-blue-400 border border-blue-500/20" },
+  under_review: { label: "In Prüfung", cls: "bg-yellow-500/10 text-yellow-400 border border-yellow-500/20" },
+  approved:     { label: "✓ Genehmigt", cls: "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" },
+  rejected:     { label: "✕ Abgelehnt", cls: "bg-red-500/10 text-red-400 border border-red-500/20" },
+};
+
+// ── Proof Gallery with per-file review ────────────────────────────
+function ProofGallery({
+  files,
+  proofUrl,
+  clipId,
+  onReviewed,
+}: {
+  files: ProofFile[];
+  proofUrl: string | null;
+  clipId: string;
+  onReviewed: () => void;
+}) {
+  const [lightboxIdx, setLightboxIdx] = useState<number | null>(null);
+  const [rejectInput, setRejectInput] = useState("");
+  const [showRejectInput, setShowRejectInput] = useState(false);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
 
   // Merge: files from table + legacy proof_url fallback
   const allFiles: ProofFile[] = files.length > 0
     ? files
     : proofUrl
-    ? [{ id: null, file_url: proofUrl, file_name: null, file_size: null, mime_type: null, uploaded_at: null }]
+    ? [{
+        id: null, file_url: proofUrl, file_name: null, file_size: null,
+        mime_type: null, uploaded_at: null, proof_status: null,
+        uploader_note: null, reviewed_by_id: null, reviewed_by_name: null,
+        reviewed_at: null, review_note: null,
+      }]
     : [];
 
   if (allFiles.length === 0) return null;
 
+  const lightboxFile = lightboxIdx !== null ? allFiles[lightboxIdx] : null;
+
+  async function doFileAction(fileId: string, action: 'approve' | 'reject' | 'reset', note?: string) {
+    setActionLoading(action);
+    await fetch(`/api/ops/clips/${clipId}/proof/${fileId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action, review_note: note ?? null }),
+    });
+    setActionLoading(null);
+    setShowRejectInput(false);
+    setRejectInput("");
+    onReviewed();
+  }
+
   return (
     <>
-      {/* Lightbox */}
-      {lightbox && (
+      {/* ── Lightbox modal ──────────────────────────────────── */}
+      {lightboxFile && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
-          onClick={() => setLightbox(null)}
+          className="fixed inset-0 z-50 flex items-start justify-center bg-black/85 backdrop-blur-sm overflow-y-auto py-8 px-4"
+          onClick={() => { setLightboxIdx(null); setShowRejectInput(false); setRejectInput(""); }}
         >
-          <button
-            className="absolute top-4 right-4 rounded-full bg-white/10 p-2 text-white hover:bg-white/20 transition-colors"
-            onClick={() => setLightbox(null)}
-          >
-            <X className="h-5 w-5" />
-          </button>
-          <img
-            src={lightbox}
-            alt="Beleg"
-            className="max-h-[90vh] max-w-[90vw] rounded-xl object-contain shadow-2xl"
+          <div
+            className="relative w-full max-w-2xl rounded-2xl border border-border bg-card shadow-2xl overflow-hidden"
             onClick={e => e.stopPropagation()}
-          />
+          >
+            {/* Close + navigate */}
+            <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+              <div className="flex items-center gap-2">
+                {lightboxIdx! > 0 && (
+                  <button onClick={() => setLightboxIdx(lightboxIdx! - 1)} className="rounded-lg p-1.5 hover:bg-accent transition-colors">
+                    <ChevronLeft className="h-4 w-4" />
+                  </button>
+                )}
+                <span className="text-sm font-medium text-muted-foreground">
+                  {lightboxIdx! + 1} / {allFiles.length}
+                </span>
+                {lightboxIdx! < allFiles.length - 1 && (
+                  <button onClick={() => setLightboxIdx(lightboxIdx! + 1)} className="rounded-lg p-1.5 hover:bg-accent transition-colors">
+                    <ChevronRight className="h-4 w-4" />
+                  </button>
+                )}
+              </div>
+              <button
+                onClick={() => { setLightboxIdx(null); setShowRejectInput(false); setRejectInput(""); }}
+                className="rounded-lg p-1.5 hover:bg-accent transition-colors"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {/* Image */}
+            {lightboxFile.mime_type === 'application/pdf' ? (
+              <div className="flex items-center justify-center h-48 bg-muted/20">
+                <a href={lightboxFile.file_url!} target="_blank" rel="noopener noreferrer"
+                  className="flex items-center gap-2 text-sm text-primary hover:underline">
+                  <FileText className="h-6 w-6" /> PDF öffnen
+                </a>
+              </div>
+            ) : (
+              <img
+                src={lightboxFile.file_url!}
+                alt="Beleg"
+                className="w-full max-h-[55vh] object-contain bg-muted/20"
+              />
+            )}
+
+            {/* Metadata */}
+            <div className="px-5 py-4 space-y-3 border-t border-border">
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <div>
+                  <p className="text-sm font-medium">{lightboxFile.file_name ?? `Screenshot ${lightboxIdx! + 1}`}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {lightboxFile.file_size ? formatBytes(lightboxFile.file_size) + " · " : ""}
+                    {lightboxFile.uploaded_at ? formatDateTime(lightboxFile.uploaded_at) : ""}
+                  </p>
+                </div>
+                {lightboxFile.proof_status && (FILE_STATUS_CFG[lightboxFile.proof_status] || null) && (
+                  <span className={`rounded px-2 py-0.5 text-xs font-medium ${(FILE_STATUS_CFG[lightboxFile.proof_status] ?? FILE_STATUS_CFG.uploaded).cls}`}>
+                    {(FILE_STATUS_CFG[lightboxFile.proof_status] ?? FILE_STATUS_CFG.uploaded).label}
+                  </span>
+                )}
+              </div>
+
+              {/* Uploader note */}
+              {lightboxFile.uploader_note && (
+                <div className="rounded-lg bg-muted/40 px-3 py-2">
+                  <p className="text-xs text-muted-foreground mb-0.5 font-medium">Notiz vom Cutter</p>
+                  <p className="text-sm">{lightboxFile.uploader_note}</p>
+                </div>
+              )}
+
+              {/* Previous review info */}
+              {lightboxFile.reviewed_by_name && (
+                <div className={`rounded-lg px-3 py-2 ${lightboxFile.proof_status === 'approved' ? 'bg-emerald-500/10 border border-emerald-500/20' : 'bg-red-500/10 border border-red-500/20'}`}>
+                  <p className={`text-xs font-medium ${lightboxFile.proof_status === 'approved' ? 'text-emerald-400' : 'text-red-400'}`}>
+                    {lightboxFile.proof_status === 'approved' ? '✓ Genehmigt' : '✕ Abgelehnt'} von {lightboxFile.reviewed_by_name}
+                    {lightboxFile.reviewed_at && ` · ${formatDateTime(lightboxFile.reviewed_at)}`}
+                  </p>
+                  {lightboxFile.review_note && (
+                    <p className="text-xs text-muted-foreground mt-0.5">{lightboxFile.review_note}</p>
+                  )}
+                </div>
+              )}
+
+              {/* Review actions — only when file has an id (not legacy) */}
+              {lightboxFile.id && lightboxFile.proof_status !== 'approved' && (
+                <div className="space-y-2 pt-1 border-t border-border">
+                  <p className="text-xs font-medium text-muted-foreground">Diesen Screenshot prüfen:</p>
+
+                  {showRejectInput && (
+                    <div className="flex gap-2">
+                      <input
+                        value={rejectInput}
+                        onChange={e => setRejectInput(e.target.value)}
+                        placeholder="Ablehnungsgrund…"
+                        className="h-9 flex-1 rounded-lg border border-input bg-background px-3 text-sm outline-none focus:border-primary"
+                      />
+                      <button
+                        onClick={() => doFileAction(lightboxFile.id!, 'reject', rejectInput)}
+                        disabled={!rejectInput.trim() || actionLoading !== null}
+                        className="h-9 rounded-lg bg-red-500/10 px-4 text-sm text-red-400 hover:bg-red-500/20 disabled:opacity-50 transition-colors"
+                      >
+                        {actionLoading === 'reject' ? <RefreshCw className="h-4 w-4 animate-spin" /> : "Ablehnen"}
+                      </button>
+                    </div>
+                  )}
+
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => doFileAction(lightboxFile.id!, 'approve')}
+                      disabled={actionLoading !== null}
+                      className="flex-1 rounded-lg bg-emerald-500/10 py-2 text-sm font-medium text-emerald-400 hover:bg-emerald-500/20 disabled:opacity-50 transition-colors"
+                    >
+                      {actionLoading === 'approve' ? <RefreshCw className="h-4 w-4 animate-spin mx-auto" /> : "✓ Genehmigen"}
+                    </button>
+                    <button
+                      onClick={() => setShowRejectInput(v => !v)}
+                      disabled={actionLoading !== null}
+                      className="flex-1 rounded-lg bg-red-500/10 py-2 text-sm font-medium text-red-400 hover:bg-red-500/20 disabled:opacity-50 transition-colors"
+                    >
+                      ✕ Ablehnen
+                    </button>
+                    {lightboxFile.proof_status !== 'uploaded' && (
+                      <button
+                        onClick={() => doFileAction(lightboxFile.id!, 'reset')}
+                        disabled={actionLoading !== null}
+                        className="rounded-lg border border-border px-3 py-2 text-xs text-muted-foreground hover:bg-accent disabled:opacity-50 transition-colors"
+                        title="Zurücksetzen"
+                      >
+                        ↺
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Already approved — only reset option */}
+              {lightboxFile.id && lightboxFile.proof_status === 'approved' && (
+                <div className="pt-1 border-t border-border">
+                  <button
+                    onClick={() => doFileAction(lightboxFile.id!, 'reset')}
+                    disabled={actionLoading !== null}
+                    className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    Genehmigung zurücksetzen
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       )}
 
-      <div className={`grid gap-3 ${allFiles.length === 1 ? "grid-cols-1" : "grid-cols-2"}`}>
+      {/* ── Thumbnail grid ──────────────────────────────────── */}
+      <div className={`grid gap-3 ${allFiles.length === 1 ? "grid-cols-1" : "grid-cols-2 sm:grid-cols-3"}`}>
         {allFiles.map((file, i) => {
-          const isPdf = file.mime_type === "application/pdf";
-          const url = file.file_url ?? "";
+          const isPdf    = file.mime_type === "application/pdf";
+          const url      = file.file_url ?? "";
+          const fileCfg  = file.proof_status ? (FILE_STATUS_CFG[file.proof_status] ?? null) : null;
+
           return (
-            <div key={file.id ?? i} className="group relative rounded-xl border border-border overflow-hidden bg-muted/20">
+            <div
+              key={file.id ?? i}
+              className={`group relative rounded-xl border overflow-hidden bg-muted/20 cursor-pointer transition-all hover:border-primary/40 ${
+                file.proof_status === 'approved' ? 'border-emerald-500/40' :
+                file.proof_status === 'rejected' ? 'border-red-500/40' :
+                'border-border'
+              }`}
+              onClick={() => setLightboxIdx(i)}
+            >
               {isPdf ? (
-                <a
-                  href={url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex h-40 items-center justify-center gap-2 text-sm text-muted-foreground hover:text-primary transition-colors"
-                >
-                  <FileText className="h-8 w-8" />
-                  PDF öffnen
-                </a>
+                <div className="flex h-32 items-center justify-center gap-2 text-xs text-muted-foreground">
+                  <FileText className="h-6 w-6" />
+                  PDF
+                </div>
               ) : (
-                <button
-                  onClick={() => setLightbox(url)}
-                  className="relative block w-full"
-                  title="Vergrößern"
-                >
+                <div className="relative">
                   <img
                     src={url}
                     alt={`Beleg ${i + 1}`}
-                    className="w-full max-h-72 object-contain bg-muted/30"
+                    className="w-full h-32 object-cover"
                     onError={e => { (e.target as HTMLImageElement).style.opacity = "0.3"; }}
                   />
                   <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/20">
-                    <ZoomIn className="h-8 w-8 text-white drop-shadow" />
+                    <ZoomIn className="h-6 w-6 text-white drop-shadow" />
                   </div>
-                </button>
-              )}
-              {(file.file_name || file.file_size || file.uploaded_at) && (
-                <div className="px-3 py-2 border-t border-border text-xs text-muted-foreground flex items-center justify-between gap-2">
-                  <span className="truncate">{file.file_name ?? `Screenshot ${i + 1}`}</span>
-                  <span className="shrink-0 flex items-center gap-2">
-                    {file.file_size && <span>{formatBytes(file.file_size)}</span>}
-                    {file.uploaded_at && <span>{formatRelative(file.uploaded_at)}</span>}
-                  </span>
                 </div>
               )}
+
+              {/* Status badge overlay */}
+              {fileCfg && (
+                <div className={`absolute top-1.5 left-1.5 rounded px-1.5 py-0.5 text-[10px] font-medium backdrop-blur-sm ${fileCfg.cls}`}>
+                  {fileCfg.label}
+                </div>
+              )}
+
+              {/* Metadata footer */}
+              <div className="px-2 py-1.5 border-t border-border text-[10px] text-muted-foreground">
+                <p className="truncate">{file.file_name ?? `Screenshot ${i + 1}`}</p>
+                {file.uploaded_at && <p className="truncate">{formatRelative(file.uploaded_at)}</p>}
+              </div>
             </div>
           );
         })}
@@ -441,7 +632,7 @@ export default function ClipDetailPage() {
 
           {/* Proof gallery */}
           {(proofFiles.length > 0 || video.proof_url) ? (
-            <ProofGallery files={proofFiles} proofUrl={video.proof_url} />
+            <ProofGallery files={proofFiles} proofUrl={video.proof_url} clipId={id} onReviewed={load} />
           ) : (
             <p className="text-sm text-muted-foreground py-4 text-center">
               Noch kein Screenshot hochgeladen.
