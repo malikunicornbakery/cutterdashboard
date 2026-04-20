@@ -61,7 +61,6 @@ export async function POST(
     return NextResponse.json({ error: 'Ungültige Aktion' }, { status: 400 });
   }
 
-  // Verify video exists
   const check = await dbQuery(`SELECT id FROM cutter_videos WHERE id = ?`, [id]);
   if (!(check.rows as unknown[]).length) {
     return NextResponse.json({ error: 'Video nicht gefunden' }, { status: 404 });
@@ -93,22 +92,38 @@ export async function POST(
 
     case 'approve_proof':
       await dbQuery(
-        `UPDATE cutter_videos SET proof_status = 'approved' WHERE id = ?`,
-        [id]
+        `UPDATE cutter_videos
+         SET proof_status         = 'proof_approved',
+             proof_reviewer_id    = ?,
+             proof_reviewer_name  = ?,
+             proof_reviewed_at    = ?,
+             verification_status  = 'manual_proof'
+         WHERE id = ?`,
+        [auth.id, auth.name, now, id]
       );
       break;
 
     case 'reject_proof':
       await dbQuery(
-        `UPDATE cutter_videos SET proof_status = 'rejected', proof_notes = ? WHERE id = ?`,
-        [actionParams.reason ?? null, id]
+        `UPDATE cutter_videos
+         SET proof_status           = 'proof_rejected',
+             proof_rejection_reason = ?,
+             proof_reviewer_id      = ?,
+             proof_reviewer_name    = ?,
+             proof_reviewed_at      = ?
+         WHERE id = ?`,
+        [actionParams.reason ?? null, auth.id, auth.name, now, id]
       );
       break;
 
     case 'request_proof':
       await dbQuery(
-        `UPDATE cutter_videos SET proof_status = 'requested' WHERE id = ?`,
-        [id]
+        `UPDATE cutter_videos
+         SET proof_status        = 'proof_requested',
+             proof_requested_by  = ?,
+             proof_requested_at  = ?
+         WHERE id = ?`,
+        [auth.name, now, id]
       );
       break;
 
@@ -127,19 +142,11 @@ export async function POST(
       break;
   }
 
-  // Write audit log
+  // Audit log
   await dbQuery(
     `INSERT INTO audit_log (id, actor_id, actor_name, action, entity_type, entity_id, meta, created_at)
      VALUES (?, ?, ?, ?, 'video', ?, ?, ?)`,
-    [
-      randomUUID(),
-      auth.id,
-      auth.name,
-      `video.${action}`,
-      id,
-      JSON.stringify(actionParams),
-      now,
-    ]
+    [randomUUID(), auth.id, auth.name, `video.${action}`, id, JSON.stringify(actionParams), now]
   );
 
   return NextResponse.json({ success: true });

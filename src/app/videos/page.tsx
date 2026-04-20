@@ -271,136 +271,227 @@ function ClaimedViewsCell({ video, onUpdate, mobile }: { video: VideoRow; onUpda
 }
 
 // ── Proof Cell ────────────────────────────────────────────────
+interface ProofFile { id: string; file_url: string; file_name: string | null; file_size: number | null; mime_type: string | null; uploaded_at: string; }
+
 function ProofCell({ video, onReload, mobile }: { video: VideoRow; onReload: () => void; mobile?: boolean }) {
+  const [files, setFiles] = useState<ProofFile[]>([]);
   const [uploading, setUploading] = useState(false);
-  const [deleting, setDeleting] = useState(false);
   const [uploadDone, setUploadDone] = useState(false);
   const [uploadErrorMsg, setUploadErrorMsg] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [note, setNote] = useState("");
+  const [showNote, setShowNote] = useState(false);
+
+  const status = video.proof_status;
+  const isApproved = status === "proof_approved";
+  const hasProof = !!video.proof_url || status === "proof_submitted" || status === "proof_under_review" || status === "proof_approved";
+
+  async function loadFiles() {
+    const res = await fetch(`/api/videos/${video.id}/proof`);
+    if (res.ok) {
+      const data = await res.json();
+      setFiles(data.files ?? []);
+    }
+  }
+
+  useEffect(() => {
+    if (hasProof) loadFiles();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [video.id, video.proof_status]);
 
   async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
     setUploading(true);
-    setUploadDone(false);
     setUploadErrorMsg(null);
     const fd = new FormData();
     fd.append("file", file);
+    if (note.trim()) fd.append("note", note.trim());
     const res = await fetch(`/api/videos/${video.id}/proof`, { method: "POST", body: fd });
     setUploading(false);
     if (res.ok) {
       setUploadDone(true);
+      await loadFiles();
       onReload();
-      setTimeout(() => setUploadDone(false), 5000);
+      setTimeout(() => setUploadDone(false), 4000);
     } else {
       const data = await res.json().catch(() => ({}));
-      const msg = data.error || `Fehler ${res.status}`;
-      setUploadErrorMsg(msg);
+      setUploadErrorMsg(data.error || `Fehler ${res.status}`);
       setTimeout(() => setUploadErrorMsg(null), 8000);
     }
     e.target.value = "";
   }
 
-  async function handleDelete() {
-    setDeleting(true);
-    await fetch(`/api/videos/${video.id}/proof`, { method: "DELETE" });
-    setDeleting(false);
+  async function handleDeleteFile(fileId: string) {
+    setDeletingId(fileId);
+    await fetch(`/api/videos/${video.id}/proof?fileId=${fileId}`, { method: "DELETE" });
+    setDeletingId(null);
+    await loadFiles();
     onReload();
   }
 
-  const status = video.proof_status;
+  // ── Upload zone ────────────────────────────────────────────
+  const uploadZone = (label: string, cls?: string) => (
+    <label className={cls ?? (mobile
+      ? `flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl border-2 border-dashed py-3 text-sm transition-all active:scale-[0.98] ${
+          uploadDone ? "border-emerald-500 bg-emerald-500/10 text-emerald-400" :
+          uploadErrorMsg ? "border-red-500 bg-red-500/10 text-red-400" :
+          "border-border bg-muted/30 text-muted-foreground hover:border-primary/40 hover:bg-accent/30"
+        }`
+      : "flex cursor-pointer items-center gap-1.5 rounded-lg border border-border bg-muted/50 px-2.5 py-1 text-xs text-muted-foreground hover:border-primary/30 hover:text-foreground hover:bg-accent transition-all"
+    )}>
+      {uploading ? <RefreshCw className={mobile ? "h-4 w-4 animate-spin" : "h-3.5 w-3.5 animate-spin"} /> :
+       uploadDone ? <Check className={mobile ? "h-4 w-4" : "h-3.5 w-3.5"} /> :
+       <Upload className={mobile ? "h-4 w-4" : "h-3.5 w-3.5"} />}
+      {uploading ? "Lädt hoch…" : uploadDone ? "✓ Hochgeladen!" : label}
+      <input type="file" accept="image/*,application/pdf" className="sr-only" onChange={handleFileChange} disabled={uploading || isApproved} />
+    </label>
+  );
 
-  const uploadClass = mobile
-    ? `flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl border-2 border-dashed py-4 text-sm transition-all active:scale-[0.98] ${
-        uploadDone ? "border-emerald-500 bg-emerald-500/10 text-emerald-400" :
-        uploadErrorMsg ? "border-red-500 bg-red-500/10 text-red-400" :
-        "border-border bg-muted/30 text-muted-foreground hover:border-primary/40 hover:text-foreground hover:bg-accent/30"
-      }`
-    : "flex cursor-pointer items-center gap-1.5 rounded-lg border border-border bg-muted/50 px-2.5 py-1 text-xs text-muted-foreground hover:border-primary/30 hover:text-foreground hover:bg-accent transition-all";
+  // ── Thumbnail grid (mobile) ────────────────────────────────
+  const mobileGallery = files.length > 0 && (
+    <div className={`grid gap-2 ${files.length === 1 ? "grid-cols-1" : "grid-cols-2"}`}>
+      {files.map((f) => (
+        <div key={f.id} className="relative rounded-xl overflow-hidden border border-border bg-muted/20">
+          <img
+            src={f.file_url}
+            alt="Nachweis"
+            className="w-full h-28 object-cover"
+            onError={e => { (e.target as HTMLImageElement).style.opacity = "0.3"; }}
+          />
+          {!isApproved && (
+            <button
+              onClick={() => handleDeleteFile(f.id)}
+              disabled={deletingId === f.id}
+              className="absolute top-1.5 right-1.5 rounded-full bg-black/60 p-1 text-white hover:bg-black/80 transition-colors"
+            >
+              {deletingId === f.id
+                ? <RefreshCw className="h-3 w-3 animate-spin" />
+                : <X className="h-3 w-3" />}
+            </button>
+          )}
+          {isApproved && (
+            <div className="absolute top-1.5 left-1.5 rounded-full bg-emerald-500/80 px-1.5 py-0.5 text-[10px] text-white font-medium">✓</div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
 
-  // No proof / reset state
-  if (!status || status === "no_proof_needed" || status === "none") {
+  // ── Approved ──────────────────────────────────────────────
+  if (isApproved) {
+    if (!mobile) return <span className="rounded-md border border-emerald-500/20 bg-emerald-500/10 px-1.5 py-0.5 text-xs text-emerald-400">✓ Genehmigt</span>;
     return (
-      <div className="space-y-1.5">
-        <label className={uploadClass}>
-          {uploading
-            ? <RefreshCw className={mobile ? "h-5 w-5 animate-spin" : "h-3.5 w-3.5 animate-spin"} />
-            : uploadDone
-            ? <Check className={mobile ? "h-5 w-5" : "h-3.5 w-3.5"} />
-            : <Upload className={mobile ? "h-5 w-5" : "h-3.5 w-3.5"} />}
-          {mobile
-            ? uploading ? "Wird hochgeladen…"
-              : uploadDone ? "✓ Screenshot erfolgreich hochgeladen!"
-              : uploadErrorMsg ? "Fehler — nochmal antippen"
-              : "Screenshot auswählen / Foto aufnehmen"
-            : "Hochladen"}
-          <input type="file" accept="image/jpeg,image/png,image/webp,image/*" className="sr-only" onChange={handleFileChange} disabled={uploading} />
-        </label>
-        {mobile && uploadErrorMsg && <p className="text-xs text-red-400 break-words">Fehler: {uploadErrorMsg}</p>}
+      <div className="space-y-2">
+        {mobileGallery}
+        <p className="text-xs text-emerald-400 font-medium text-center">✓ Beleg genehmigt</p>
       </div>
     );
   }
 
-  // Proof was requested by ops
-  if (status === "proof_requested") {
-    return (
-      <div className="flex flex-col gap-1.5">
-        <span className="rounded-md border border-orange-500/20 bg-orange-500/10 px-1.5 py-0.5 text-xs text-orange-400 font-medium">
-          ⚠ Beleg angefordert
-        </span>
-        <label className={mobile
-          ? "flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl border-2 border-dashed border-primary/40 bg-primary/5 py-4 text-sm text-primary hover:bg-primary/10 transition-colors active:scale-[0.98]"
-          : "flex cursor-pointer items-center gap-1.5 rounded-lg border border-primary/30 bg-primary/10 px-2.5 py-1 text-xs text-primary hover:bg-primary/20 transition-colors"
-        }>
-          {uploading ? <RefreshCw className={mobile ? "h-5 w-5 animate-spin" : "h-3.5 w-3.5 animate-spin"} /> : <Upload className={mobile ? "h-5 w-5" : "h-3.5 w-3.5"} />}
-          {mobile ? "Jetzt Screenshot hochladen" : "Jetzt hochladen"}
-          <input type="file" accept="image/jpeg,image/png,image/webp,image/*" className="sr-only" onChange={handleFileChange} disabled={uploading} />
-        </label>
-      </div>
-    );
-  }
-
-  // Submitted — under review
-  if (status === "proof_submitted" || status === "proof_under_review" || status === "pending") {
-    return (
-      <div className="flex items-center gap-1.5">
-        <span className="rounded-md border border-amber-500/20 bg-amber-500/10 px-1.5 py-0.5 text-xs text-amber-400">
-          In Prüfung
-        </span>
-        <button onClick={handleDelete} disabled={deleting} className="text-muted-foreground hover:text-destructive transition-colors" title="Entfernen">
-          {deleting ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <X className="h-3.5 w-3.5" />}
-        </button>
-      </div>
-    );
-  }
-
-  // Approved
-  if (status === "proof_approved" || status === "approved") {
-    return (
-      <span className="rounded-md border border-emerald-500/20 bg-emerald-500/10 px-1.5 py-0.5 text-xs text-emerald-400">
-        ✓ Genehmigt
-      </span>
-    );
-  }
-
-  // Rejected — show reason + allow re-upload
-  if (status === "proof_rejected" || status === "rejected") {
-    return (
+  // ── Rejected — allow re-upload ────────────────────────────
+  if (status === "proof_rejected") {
+    if (!mobile) return (
       <div className="flex flex-col gap-1.5">
         {video.proof_rejection_reason && (
-          <p className="text-xs text-red-400 max-w-[160px] truncate" title={video.proof_rejection_reason}>
-            ✕ {video.proof_rejection_reason}
-          </p>
+          <p className="text-xs text-red-400 max-w-[160px] truncate" title={video.proof_rejection_reason}>✕ {video.proof_rejection_reason}</p>
         )}
-        <label className="flex cursor-pointer items-center gap-1.5 rounded-lg bg-red-500/10 border border-red-500/20 px-2 py-1 text-xs text-red-400 hover:bg-red-500/20 transition-colors">
-          {uploading ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
-          Neu hochladen
-          <input type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" onChange={handleFileChange} disabled={uploading} />
-        </label>
+        {uploadZone("Neu hochladen", "flex cursor-pointer items-center gap-1.5 rounded-lg bg-red-500/10 border border-red-500/20 px-2 py-1 text-xs text-red-400 hover:bg-red-500/20 transition-colors")}
+      </div>
+    );
+    return (
+      <div className="space-y-2">
+        {video.proof_rejection_reason && (
+          <div className="rounded-xl border border-red-500/20 bg-red-500/5 px-3 py-2">
+            <p className="text-xs text-red-400 font-medium">Abgelehnt</p>
+            <p className="text-xs text-red-300 mt-0.5">{video.proof_rejection_reason}</p>
+          </div>
+        )}
+        {mobileGallery}
+        {uploadZone("Neue Screenshots hochladen")}
+        {uploadErrorMsg && <p className="text-xs text-red-400 break-words">Fehler: {uploadErrorMsg}</p>}
       </div>
     );
   }
 
-  return null;
+  // ── Submitted / Under review — show gallery + add more ────
+  if (status === "proof_submitted" || status === "proof_under_review") {
+    if (!mobile) return (
+      <div className="flex items-center gap-1.5">
+        <span className="rounded-md border border-amber-500/20 bg-amber-500/10 px-1.5 py-0.5 text-xs text-amber-400">
+          In Prüfung {files.length > 0 ? `(${files.length})` : ""}
+        </span>
+      </div>
+    );
+    return (
+      <div className="space-y-2">
+        <div className="flex items-center gap-2">
+          <span className="rounded-md border border-amber-500/20 bg-amber-500/10 px-2 py-0.5 text-xs text-amber-400 font-medium">
+            ⏳ In Prüfung
+          </span>
+          {files.length > 0 && <span className="text-xs text-muted-foreground">{files.length} Screenshot{files.length > 1 ? "s" : ""}</span>}
+        </div>
+        {mobileGallery}
+        {uploadZone("Weiteren Screenshot hinzufügen")}
+        {uploadDone && <p className="text-xs text-emerald-400 font-medium">✓ Screenshot hinzugefügt!</p>}
+        {uploadErrorMsg && <p className="text-xs text-red-400 break-words">Fehler: {uploadErrorMsg}</p>}
+      </div>
+    );
+  }
+
+  // ── Proof requested by ops ────────────────────────────────
+  if (status === "proof_requested") {
+    if (!mobile) return uploadZone("Jetzt hochladen",
+      "flex cursor-pointer items-center gap-1.5 rounded-lg border border-primary/30 bg-primary/10 px-2.5 py-1 text-xs text-primary hover:bg-primary/20 transition-colors"
+    );
+    return (
+      <div className="space-y-2">
+        <div className="rounded-xl border border-orange-500/20 bg-orange-500/5 px-3 py-2">
+          <p className="text-xs text-orange-400 font-semibold">⚠ Admin hat Beleg angefordert</p>
+          <p className="text-xs text-muted-foreground mt-0.5">Bitte Screenshot jetzt hochladen.</p>
+        </div>
+        {/* Note toggle */}
+        <button onClick={() => setShowNote(v => !v)} className="text-xs text-muted-foreground hover:text-foreground transition-colors">
+          {showNote ? "▲ Notiz ausblenden" : "▼ Notiz hinzufügen (optional)"}
+        </button>
+        {showNote && (
+          <textarea
+            value={note}
+            onChange={e => setNote(e.target.value)}
+            placeholder="Kurze Erklärung zum Screenshot…"
+            rows={2}
+            className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm outline-none focus:border-primary resize-none"
+          />
+        )}
+        {uploadZone("Jetzt Screenshot hochladen", `flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl border-2 border-dashed py-3 text-sm transition-all active:scale-[0.98] border-primary/40 bg-primary/5 text-primary hover:bg-primary/10`)}
+        {uploadDone && <p className="text-xs text-emerald-400 font-medium">✓ Screenshot hochgeladen!</p>}
+        {uploadErrorMsg && <p className="text-xs text-red-400 break-words">Fehler: {uploadErrorMsg}</p>}
+      </div>
+    );
+  }
+
+  // ── No proof yet ──────────────────────────────────────────
+  if (!mobile) return uploadZone("Hochladen");
+  return (
+    <div className="space-y-2">
+      {/* Note toggle */}
+      <button onClick={() => setShowNote(v => !v)} className="text-xs text-muted-foreground hover:text-foreground transition-colors">
+        {showNote ? "▲ Notiz ausblenden" : "▼ Notiz hinzufügen (optional)"}
+      </button>
+      {showNote && (
+        <textarea
+          value={note}
+          onChange={e => setNote(e.target.value)}
+          placeholder="Kurze Erklärung zum Screenshot…"
+          rows={2}
+          className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm outline-none focus:border-primary resize-none"
+        />
+      )}
+      {uploadZone("Screenshot auswählen / Foto aufnehmen")}
+      {uploadDone && <p className="text-xs text-emerald-400 font-medium">✓ Screenshot hochgeladen!</p>}
+      {uploadErrorMsg && <p className="text-xs text-red-400 break-words">Fehler: {uploadErrorMsg}</p>}
+    </div>
+  );
 }
 
 // ── Row background for discrepancy ───────────────────────────

@@ -7,15 +7,18 @@ import { CutterNav } from "@/components/cutter-nav";
 import { ClipNotesPanel } from "@/components/clip-notes-panel";
 import { ClipAttributesPanel } from "@/components/clip-attributes-panel";
 import {
-  ArrowLeft,
-  Flag,
-  FlagOff,
-  CheckCircle2,
-  ShieldCheck,
-  FileText,
-  RefreshCw,
-  ExternalLink,
+  ArrowLeft, Flag, FlagOff, CheckCircle2, ShieldCheck,
+  FileText, RefreshCw, ExternalLink, X, ZoomIn,
 } from "lucide-react";
+
+interface ProofFile {
+  id: string | null;
+  file_url: string | null;
+  file_name: string | null;
+  file_size: number | null;
+  mime_type: string | null;
+  uploaded_at: string | null;
+}
 
 interface VideoDetail {
   id: string;
@@ -39,7 +42,14 @@ interface VideoDetail {
   flag_reason: string | null;
   proof_url: string | null;
   proof_status: string | null;
-  proof_notes: string | null;
+  proof_cutter_note: string | null;
+  proof_rejection_reason: string | null;
+  proof_reviewer_id: string | null;
+  proof_reviewer_name: string | null;
+  proof_reviewed_at: string | null;
+  proof_uploaded_at: string | null;
+  proof_requested_at: string | null;
+  proof_requested_by: string | null;
   episode_id: string | null;
   published_at: string | null;
   last_scraped_at: string | null;
@@ -49,41 +59,19 @@ interface VideoDetail {
   review_notes: string | null;
 }
 
-interface Cutter {
-  id: string | null;
-  name: string | null;
-  email: string | null;
-  rate_per_view: number | null;
-}
-
-interface Episode {
-  id: string | null;
-  title: string | null;
-}
-
+interface Cutter { id: string | null; name: string | null; email: string | null; rate_per_view: number | null; }
+interface Episode { id: string | null; title: string | null; }
 interface Snapshot {
-  id: string | null;
-  views: number | null;
-  observed_views: number | null;
-  api_views: number | null;
-  claimed_views: number | null;
-  verification_source: string | null;
-  confidence_level: number | null;
-  snapshot_type: string | null;
-  success: number | null;
-  error_message: string | null;
-  scraped_at: string | null;
+  id: string | null; views: number | null; observed_views: number | null;
+  api_views: number | null; claimed_views: number | null;
+  verification_source: string | null; confidence_level: number | null;
+  snapshot_type: string | null; success: number | null;
+  error_message: string | null; scraped_at: string | null;
 }
-
 interface AuditEntry {
-  id: string | null;
-  actor_id: string | null;
-  actor_name: string | null;
-  action: string | null;
-  entity_type: string | null;
-  entity_id: string | null;
-  meta: string | null;
-  created_at: string | null;
+  id: string | null; actor_id: string | null; actor_name: string | null;
+  action: string | null; entity_type: string | null; entity_id: string | null;
+  meta: string | null; created_at: string | null;
 }
 
 interface ClipDetailResponse {
@@ -92,21 +80,43 @@ interface ClipDetailResponse {
   episode: Episode | null;
   snapshots: Snapshot[];
   auditTrail: AuditEntry[];
+  proofFiles: ProofFile[];
 }
 
 const PLATFORM_LABELS: Record<string, string> = {
-  youtube: "YouTube",
-  tiktok: "TikTok",
-  instagram: "Instagram",
-  facebook: "Facebook",
+  youtube: "YouTube", tiktok: "TikTok", instagram: "Instagram", facebook: "Facebook",
 };
 
 const DISC_CONFIG: Record<string, { label: string; cls: string }> = {
-  match: { label: "Übereinstimmung", cls: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" },
-  minor_difference: { label: "Geringe Differenz", cls: "bg-yellow-500/10 text-yellow-400 border-yellow-500/20" },
+  match:                 { label: "Übereinstimmung",     cls: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" },
+  minor_difference:      { label: "Geringe Differenz",   cls: "bg-yellow-500/10 text-yellow-400 border-yellow-500/20" },
   suspicious_difference: { label: "Verdächtige Differenz", cls: "bg-orange-500/10 text-orange-400 border-orange-500/20" },
-  critical_difference: { label: "Kritische Differenz", cls: "bg-red-500/10 text-red-400 border-red-500/20" },
-  no_data: { label: "Keine Daten", cls: "bg-muted/50 text-muted-foreground border-border" },
+  critical_difference:   { label: "Kritische Differenz", cls: "bg-red-500/10 text-red-400 border-red-500/20" },
+  no_data:               { label: "Keine Daten",         cls: "bg-muted/50 text-muted-foreground border-border" },
+};
+
+const PROOF_STATUS_CONFIG: Record<string, { label: string; cls: string }> = {
+  proof_submitted:     { label: "⏳ Zur Prüfung", cls: "bg-yellow-500/10 text-yellow-400 border border-yellow-500/20" },
+  proof_under_review:  { label: "🔍 In Prüfung", cls: "bg-purple-500/10 text-purple-400 border border-purple-500/20" },
+  proof_approved:      { label: "✓ Genehmigt",   cls: "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" },
+  proof_rejected:      { label: "✕ Abgelehnt",   cls: "bg-red-500/10 text-red-400 border border-red-500/20" },
+  proof_requested:     { label: "⚠ Angefordert", cls: "bg-orange-500/10 text-orange-400 border border-orange-500/20" },
+  no_proof_needed:     { label: "—",              cls: "bg-muted/50 text-muted-foreground border-border" },
+};
+
+const ACTION_LABELS: Record<string, string> = {
+  "video.mark_reviewed": "Als geprüft markiert",
+  "video.flag":          "Geflaggt",
+  "video.unflag":        "Entflaggt",
+  "video.approve_proof": "Beleg genehmigt",
+  "video.reject_proof":  "Beleg abgelehnt",
+  "video.request_proof": "Beleg angefordert",
+  "video.add_note":      "Notiz hinzugefügt",
+  "video.set_verified":  "Als verifiziert gesetzt",
+  "proof_approve":       "Beleg genehmigt",
+  "proof_reject":        "Beleg abgelehnt",
+  "note_add":            "Notiz hinzugefügt",
+  "note_delete":         "Notiz gelöscht",
 };
 
 function formatNum(n: number | null | undefined): string {
@@ -136,21 +146,100 @@ function formatDateTime(d: string | null): string {
   });
 }
 
-const ACTION_LABELS: Record<string, string> = {
-  "video.mark_reviewed":  "Als geprüft markiert",
-  "video.flag":           "Geflaggt",
-  "video.unflag":         "Entflaggt",
-  "video.approve_proof":  "Beleg genehmigt",
-  "video.reject_proof":   "Beleg abgelehnt",
-  "video.request_proof":  "Beleg angefordert",
-  "video.add_note":       "Notiz hinzugefügt",
-  "video.set_verified":   "Als verifiziert gesetzt",
-  "proof_approve":        "Beleg genehmigt",
-  "proof_reject":         "Beleg abgelehnt",
-  "note_add":             "Cutter-sichtbare Notiz hinzugefügt",
-  "note_delete":          "Notiz gelöscht",
-};
+function formatBytes(n: number | null): string {
+  if (n == null) return "";
+  if (n >= 1024 * 1024) return `${(n / 1024 / 1024).toFixed(1)} MB`;
+  if (n >= 1024) return `${(n / 1024).toFixed(0)} KB`;
+  return `${n} B`;
+}
 
+// ── Proof Gallery ──────────────────────────────────────────────────
+function ProofGallery({ files, proofUrl }: { files: ProofFile[]; proofUrl: string | null }) {
+  const [lightbox, setLightbox] = useState<string | null>(null);
+
+  // Merge: files from table + legacy proof_url fallback
+  const allFiles: ProofFile[] = files.length > 0
+    ? files
+    : proofUrl
+    ? [{ id: null, file_url: proofUrl, file_name: null, file_size: null, mime_type: null, uploaded_at: null }]
+    : [];
+
+  if (allFiles.length === 0) return null;
+
+  return (
+    <>
+      {/* Lightbox */}
+      {lightbox && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
+          onClick={() => setLightbox(null)}
+        >
+          <button
+            className="absolute top-4 right-4 rounded-full bg-white/10 p-2 text-white hover:bg-white/20 transition-colors"
+            onClick={() => setLightbox(null)}
+          >
+            <X className="h-5 w-5" />
+          </button>
+          <img
+            src={lightbox}
+            alt="Beleg"
+            className="max-h-[90vh] max-w-[90vw] rounded-xl object-contain shadow-2xl"
+            onClick={e => e.stopPropagation()}
+          />
+        </div>
+      )}
+
+      <div className={`grid gap-3 ${allFiles.length === 1 ? "grid-cols-1" : "grid-cols-2"}`}>
+        {allFiles.map((file, i) => {
+          const isPdf = file.mime_type === "application/pdf";
+          const url = file.file_url ?? "";
+          return (
+            <div key={file.id ?? i} className="group relative rounded-xl border border-border overflow-hidden bg-muted/20">
+              {isPdf ? (
+                <a
+                  href={url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex h-40 items-center justify-center gap-2 text-sm text-muted-foreground hover:text-primary transition-colors"
+                >
+                  <FileText className="h-8 w-8" />
+                  PDF öffnen
+                </a>
+              ) : (
+                <button
+                  onClick={() => setLightbox(url)}
+                  className="relative block w-full"
+                  title="Vergrößern"
+                >
+                  <img
+                    src={url}
+                    alt={`Beleg ${i + 1}`}
+                    className="w-full max-h-72 object-contain bg-muted/30"
+                    onError={e => { (e.target as HTMLImageElement).style.opacity = "0.3"; }}
+                  />
+                  <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/20">
+                    <ZoomIn className="h-8 w-8 text-white drop-shadow" />
+                  </div>
+                </button>
+              )}
+              {(file.file_name || file.file_size || file.uploaded_at) && (
+                <div className="px-3 py-2 border-t border-border text-xs text-muted-foreground flex items-center justify-between gap-2">
+                  <span className="truncate">{file.file_name ?? `Screenshot ${i + 1}`}</span>
+                  <span className="shrink-0 flex items-center gap-2">
+                    {file.file_size && <span>{formatBytes(file.file_size)}</span>}
+                    {file.uploaded_at && <span>{formatRelative(file.uploaded_at)}</span>}
+                  </span>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </>
+  );
+}
+
+// ── Main Page ──────────────────────────────────────────────────────
 export default function ClipDetailPage() {
   const router = useRouter();
   const params = useParams<{ id: string }>();
@@ -186,6 +275,8 @@ export default function ClipDetailPage() {
     });
     await load();
     setActionLoading(null);
+    setShowRejectInput(false);
+    setRejectReason("");
   }
 
   if (loading) {
@@ -204,15 +295,20 @@ export default function ClipDetailPage() {
 
   if (!data) return null;
 
-  const { video, cutter, episode, snapshots, auditTrail } = data;
+  const { video, cutter, episode, snapshots, auditTrail, proofFiles } = data;
   const discCfg = DISC_CONFIG[video.discrepancy_status ?? ""] ?? DISC_CONFIG.no_data;
   const isFlagged = !!video.is_flagged;
   const confidencePct = video.confidence_level ?? 0;
+
+  const proofStatus = video.proof_status;
+  const proofStatusCfg = proofStatus ? (PROOF_STATUS_CONFIG[proofStatus] ?? PROOF_STATUS_CONFIG.no_proof_needed) : null;
+  const canApproveReject = proofStatus === "proof_submitted" || proofStatus === "proof_under_review";
 
   return (
     <>
       <CutterNav />
       <main className="mx-auto max-w-4xl p-6 space-y-6">
+
         {/* Back */}
         <Link
           href="/ops/clips"
@@ -235,15 +331,13 @@ export default function ClipDetailPage() {
                     <Flag className="h-3 w-3" /> Geflaggt
                   </span>
                 )}
-                {video.proof_status === "pending" && (
-                  <span className="rounded bg-yellow-500/10 px-2 py-0.5 text-xs text-yellow-400">
-                    Beleg ausstehend
+                {proofStatusCfg && proofStatus !== "no_proof_needed" && (
+                  <span className={`rounded px-2 py-0.5 text-xs font-medium ${proofStatusCfg.cls}`}>
+                    {proofStatusCfg.label}
                   </span>
                 )}
               </div>
-              <h1 className="text-lg font-bold leading-tight">
-                {video.title ?? "Kein Titel"}
-              </h1>
+              <h1 className="text-lg font-bold leading-tight">{video.title ?? "Kein Titel"}</h1>
               {video.url && (
                 <a
                   href={video.url}
@@ -265,10 +359,7 @@ export default function ClipDetailPage() {
           <div className="flex items-center gap-4 text-sm flex-wrap">
             <span className="text-muted-foreground">
               Cutter:{" "}
-              <Link
-                href={`/ops/clips?cutter=${video.cutter_id}`}
-                className="font-medium text-foreground hover:text-primary"
-              >
+              <Link href={`/ops/clips?cutter=${video.cutter_id}`} className="font-medium text-foreground hover:text-primary">
                 {cutter?.name ?? "—"}
               </Link>
             </span>
@@ -337,12 +428,109 @@ export default function ClipDetailPage() {
           )}
         </div>
 
+        {/* ── Proof Section ──────────────────────────────────────── */}
+        <div className="rounded-xl border border-border bg-card p-5 space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="font-semibold text-sm">Nachweis / Screenshots</h2>
+            {proofStatusCfg && (
+              <span className={`rounded px-2 py-0.5 text-xs font-medium ${proofStatusCfg.cls}`}>
+                {proofStatusCfg.label}
+              </span>
+            )}
+          </div>
+
+          {/* Proof gallery */}
+          {(proofFiles.length > 0 || video.proof_url) ? (
+            <ProofGallery files={proofFiles} proofUrl={video.proof_url} />
+          ) : (
+            <p className="text-sm text-muted-foreground py-4 text-center">
+              Noch kein Screenshot hochgeladen.
+            </p>
+          )}
+
+          {/* Cutter note */}
+          {video.proof_cutter_note && (
+            <div className="rounded-lg border border-border bg-muted/30 px-4 py-3">
+              <p className="text-xs text-muted-foreground mb-1 font-medium">Notiz vom Cutter</p>
+              <p className="text-sm">{video.proof_cutter_note}</p>
+            </div>
+          )}
+
+          {/* Upload metadata */}
+          {video.proof_uploaded_at && (
+            <p className="text-xs text-muted-foreground">
+              Hochgeladen: {formatDateTime(video.proof_uploaded_at)}
+              {proofFiles.length > 0 && ` · ${proofFiles.length} Datei${proofFiles.length > 1 ? "en" : ""}`}
+            </p>
+          )}
+
+          {/* Rejection reason */}
+          {proofStatus === "proof_rejected" && video.proof_rejection_reason && (
+            <div className="rounded-lg border border-red-500/20 bg-red-500/5 px-4 py-3">
+              <p className="text-xs text-red-400 font-medium mb-1">Ablehnungsgrund</p>
+              <p className="text-sm text-red-300">{video.proof_rejection_reason}</p>
+              {video.proof_reviewer_name && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  Von {video.proof_reviewer_name} · {formatDateTime(video.proof_reviewed_at)}
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* Approved info */}
+          {proofStatus === "proof_approved" && video.proof_reviewer_name && (
+            <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 px-4 py-3">
+              <p className="text-xs text-emerald-400 font-medium">
+                ✓ Genehmigt von {video.proof_reviewer_name} · {formatDateTime(video.proof_reviewed_at)}
+              </p>
+            </div>
+          )}
+
+          {/* Approve / Reject actions — shown when proof is pending or under review */}
+          {canApproveReject && (
+            <div className="space-y-3 border-t border-border pt-4">
+              {showRejectInput && (
+                <div className="flex gap-2">
+                  <input
+                    value={rejectReason}
+                    onChange={e => setRejectReason(e.target.value)}
+                    placeholder="Ablehnungsgrund…"
+                    className="h-9 flex-1 rounded-lg border border-input bg-background px-3 text-sm outline-none focus:border-primary"
+                  />
+                  <button
+                    onClick={() => doAction("reject_proof", { reason: rejectReason })}
+                    disabled={!rejectReason.trim() || actionLoading !== null}
+                    className="h-9 rounded-lg bg-red-500/10 px-4 text-sm text-red-400 hover:bg-red-500/20 disabled:opacity-50"
+                  >
+                    Ablehnen
+                  </button>
+                </div>
+              )}
+              <div className="flex gap-2">
+                <button
+                  onClick={() => doAction("approve_proof")}
+                  disabled={actionLoading !== null}
+                  className="flex-1 rounded-lg bg-emerald-500/10 py-2.5 text-sm font-medium text-emerald-400 hover:bg-emerald-500/20 disabled:opacity-50 transition-colors"
+                >
+                  {actionLoading === "approve_proof" ? <RefreshCw className="h-4 w-4 animate-spin mx-auto" /> : "✓ Beleg genehmigen"}
+                </button>
+                <button
+                  onClick={() => setShowRejectInput(v => !v)}
+                  disabled={actionLoading !== null}
+                  className="flex-1 rounded-lg bg-red-500/10 py-2.5 text-sm font-medium text-red-400 hover:bg-red-500/20 disabled:opacity-50 transition-colors"
+                >
+                  ✕ Beleg ablehnen
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+
         {/* Admin actions */}
         <div className="rounded-xl border border-border bg-card p-5 space-y-4">
           <h2 className="font-semibold text-sm">Admin-Aktionen</h2>
 
           <div className="flex flex-wrap gap-2">
-            {/* Mark reviewed */}
             <button
               onClick={() => doAction("mark_reviewed")}
               disabled={actionLoading !== null}
@@ -355,15 +543,13 @@ export default function ClipDetailPage() {
               )}
             </button>
 
-            {/* Flag / Unflag */}
             {isFlagged ? (
               <button
                 onClick={() => doAction("unflag")}
                 disabled={actionLoading !== null}
                 className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-sm text-muted-foreground hover:bg-accent disabled:opacity-50 transition-colors"
               >
-                <FlagOff className="h-4 w-4" />
-                Entflaggen
+                <FlagOff className="h-4 w-4" /> Entflaggen
               </button>
             ) : (
               <button
@@ -371,33 +557,27 @@ export default function ClipDetailPage() {
                 disabled={actionLoading !== null}
                 className="flex items-center gap-1.5 rounded-lg border border-red-500/40 px-3 py-2 text-sm text-red-400 hover:bg-red-500/10 disabled:opacity-50 transition-colors"
               >
-                <Flag className="h-4 w-4" />
-                Flaggen
+                <Flag className="h-4 w-4" /> Flaggen
               </button>
             )}
 
-            {/* Request proof */}
             <button
               onClick={() => doAction("request_proof")}
               disabled={actionLoading !== null}
               className="flex items-center gap-1.5 rounded-lg border border-blue-500/40 px-3 py-2 text-sm text-blue-400 hover:bg-blue-500/10 disabled:opacity-50 transition-colors"
             >
-              <FileText className="h-4 w-4" />
-              Beleg anfordern
+              <FileText className="h-4 w-4" /> Beleg anfordern
             </button>
 
-            {/* Set verified */}
             <button
               onClick={() => doAction("set_verified")}
               disabled={actionLoading !== null}
               className="flex items-center gap-1.5 rounded-lg bg-primary/15 px-3 py-2 text-sm text-primary hover:bg-primary/25 disabled:opacity-50 transition-colors"
             >
-              <ShieldCheck className="h-4 w-4" />
-              Verifiziert setzen
+              <ShieldCheck className="h-4 w-4" /> Verifiziert setzen
             </button>
           </div>
 
-          {/* Flag reason input */}
           {showFlagInput && !isFlagged && (
             <div className="flex gap-2">
               <input
@@ -419,87 +599,11 @@ export default function ClipDetailPage() {
               </button>
             </div>
           )}
-
         </div>
 
-        {/* Content attributes */}
+        {/* Content attributes + internal notes */}
         <ClipAttributesPanel videoId={id} />
-
-        {/* Internal notes panel */}
         <ClipNotesPanel videoId={id} />
-
-        {/* Proof section */}
-        {video.proof_url && (
-          <div className="rounded-xl border border-border bg-card p-5 space-y-4">
-            <div className="flex items-center justify-between">
-              <h2 className="font-semibold text-sm">Beleg</h2>
-              <span className={`rounded px-2 py-0.5 text-xs font-medium ${
-                video.proof_status === "approved" ? "bg-emerald-500/10 text-emerald-400" :
-                video.proof_status === "rejected" ? "bg-red-500/10 text-red-400" :
-                video.proof_status === "pending" ? "bg-yellow-500/10 text-yellow-400" :
-                "bg-muted text-muted-foreground"
-              }`}>
-                {video.proof_status === "approved" ? "Genehmigt" :
-                 video.proof_status === "rejected" ? "Abgelehnt" :
-                 video.proof_status === "pending" ? "Ausstehend" :
-                 video.proof_status ?? "—"}
-              </span>
-            </div>
-
-            <img
-              src={video.proof_url}
-              alt="Beleg"
-              className="rounded-lg border border-border max-h-96 w-full object-contain bg-muted"
-              onError={e => { (e.target as HTMLImageElement).style.display = "none"; }}
-            />
-
-            {video.proof_notes && (
-              <p className="text-xs text-muted-foreground">{video.proof_notes}</p>
-            )}
-
-            {video.proof_status === "pending" && (
-              <div className="space-y-2">
-                {showRejectInput && (
-                  <div className="flex gap-2">
-                    <input
-                      value={rejectReason}
-                      onChange={e => setRejectReason(e.target.value)}
-                      placeholder="Ablehnungsgrund…"
-                      className="h-9 flex-1 rounded-lg border border-input bg-background px-3 text-sm outline-none focus:border-primary"
-                    />
-                    <button
-                      onClick={async () => {
-                        await doAction("reject_proof", { reason: rejectReason });
-                        setShowRejectInput(false);
-                        setRejectReason("");
-                      }}
-                      disabled={!rejectReason.trim() || actionLoading !== null}
-                      className="h-9 rounded-lg bg-red-500/10 px-4 text-sm text-red-400 hover:bg-red-500/20 disabled:opacity-50"
-                    >
-                      Ablehnen
-                    </button>
-                  </div>
-                )}
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => doAction("approve_proof")}
-                    disabled={actionLoading !== null}
-                    className="flex-1 rounded-lg bg-emerald-500/10 py-2 text-sm text-emerald-400 hover:bg-emerald-500/20 disabled:opacity-50 transition-colors"
-                  >
-                    Beleg genehmigen
-                  </button>
-                  <button
-                    onClick={() => setShowRejectInput(v => !v)}
-                    disabled={actionLoading !== null}
-                    className="flex-1 rounded-lg bg-red-500/10 py-2 text-sm text-red-400 hover:bg-red-500/20 disabled:opacity-50 transition-colors"
-                  >
-                    Beleg ablehnen
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
 
         {/* Snapshot history */}
         {snapshots.length > 0 && (
@@ -521,22 +625,12 @@ export default function ClipDetailPage() {
                 <tbody className="divide-y divide-border">
                   {snapshots.map((snap, i) => (
                     <tr key={snap.id ?? i} className="hover:bg-muted/20">
-                      <td className="px-4 py-2.5 text-xs text-muted-foreground whitespace-nowrap">
-                        {formatDateTime(snap.scraped_at)}
-                      </td>
-                      <td className="px-4 py-2.5 text-right text-xs font-mono">
-                        {formatNum(snap.views ?? snap.api_views ?? snap.observed_views)}
-                      </td>
-                      <td className="px-4 py-2.5 text-xs text-muted-foreground">
-                        {snap.verification_source ?? "—"}
-                      </td>
+                      <td className="px-4 py-2.5 text-xs text-muted-foreground whitespace-nowrap">{formatDateTime(snap.scraped_at)}</td>
+                      <td className="px-4 py-2.5 text-right text-xs font-mono">{formatNum(snap.views ?? snap.api_views ?? snap.observed_views)}</td>
+                      <td className="px-4 py-2.5 text-xs text-muted-foreground">{snap.verification_source ?? "—"}</td>
                       <td className="px-4 py-2.5 text-center text-xs">
                         {snap.confidence_level != null ? (
-                          <span className={`font-medium ${
-                            snap.confidence_level >= 80 ? "text-emerald-400" :
-                            snap.confidence_level >= 50 ? "text-yellow-400" :
-                            "text-red-400"
-                          }`}>
+                          <span className={`font-medium ${snap.confidence_level >= 80 ? "text-emerald-400" : snap.confidence_level >= 50 ? "text-yellow-400" : "text-red-400"}`}>
                             {snap.confidence_level}/100
                           </span>
                         ) : "—"}
@@ -566,7 +660,6 @@ export default function ClipDetailPage() {
                 let metaObj: Record<string, unknown> = {};
                 try { metaObj = entry.meta ? JSON.parse(entry.meta) : {}; } catch { /* ignore */ }
                 const metaKeys = Object.keys(metaObj).filter(k => metaObj[k] !== null && metaObj[k] !== undefined && metaObj[k] !== "");
-
                 return (
                   <div key={entry.id ?? i} className="flex items-start gap-3 px-5 py-3">
                     <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-semibold text-muted-foreground mt-0.5">
@@ -574,11 +667,8 @@ export default function ClipDetailPage() {
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm">
-                        <span className="font-medium">{entry.actor_name ?? "Unbekannt"}</span>
-                        {" "}
-                        <span className="text-muted-foreground">
-                          {ACTION_LABELS[entry.action ?? ""] ?? entry.action ?? "Aktion"}
-                        </span>
+                        <span className="font-medium">{entry.actor_name ?? "Unbekannt"}</span>{" "}
+                        <span className="text-muted-foreground">{ACTION_LABELS[entry.action ?? ""] ?? entry.action ?? "Aktion"}</span>
                       </p>
                       {metaKeys.length > 0 && (
                         <p className="text-xs text-muted-foreground mt-0.5">
@@ -586,30 +676,21 @@ export default function ClipDetailPage() {
                         </p>
                       )}
                     </div>
-                    <span className="shrink-0 text-xs text-muted-foreground whitespace-nowrap">
-                      {formatDateTime(entry.created_at)}
-                    </span>
+                    <span className="shrink-0 text-xs text-muted-foreground whitespace-nowrap">{formatDateTime(entry.created_at)}</span>
                   </div>
                 );
               })}
             </div>
           </div>
         )}
+
       </main>
     </>
   );
 }
 
-function ViewCard({
-  label,
-  value,
-  border,
-  source,
-}: {
-  label: string;
-  value: string;
-  border: string;
-  source: string;
+function ViewCard({ label, value, border, source }: {
+  label: string; value: string; border: string; source: string;
 }) {
   return (
     <div className={`rounded-xl border-2 ${border} bg-card p-4 space-y-1`}>

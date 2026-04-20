@@ -331,6 +331,8 @@ export default function SubmitVideosPage() {
   const [url, setUrl] = useState("");
   const [title, setTitle] = useState("");
   const [episodeId, setEpisodeId] = useState("");
+  const [claimedViews, setClaimedViews] = useState("");
+  const [cutterNote, setCutterNote] = useState("");
   const [showOptional, setShowOptional] = useState(false);
   const [episodes, setEpisodes] = useState<Episode[]>([]);
 
@@ -414,6 +416,8 @@ export default function SubmitVideosPage() {
     setSubmitError(null);
 
     try {
+      const parsedViews = claimedViews.trim() ? parseInt(claimedViews, 10) : undefined;
+
       const res = await fetch("/api/videos", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -421,6 +425,8 @@ export default function SubmitVideosPage() {
           urls: [preview.data.normalizedUrl],
           title: title.trim() || undefined,
           episode_id: episodeId || undefined,
+          claimed_views: parsedViews && !isNaN(parsedViews) && parsedViews >= 0 ? parsedViews : undefined,
+          cutter_note: cutterNote.trim() || undefined,
         }),
       });
 
@@ -454,6 +460,8 @@ export default function SubmitVideosPage() {
     setUrl("");
     setTitle("");
     setEpisodeId("");
+    setClaimedViews("");
+    setCutterNote("");
     setPreview({ status: "idle" });
     setSubmitError(null);
     setSuccess(false);
@@ -579,8 +587,10 @@ export default function SubmitVideosPage() {
             >
               <span className="flex items-center gap-2">
                 Weitere Details
-                {title && (
-                  <span className="rounded-full bg-primary/10 text-primary text-xs px-2 py-0.5">1</span>
+                {(title || claimedViews || cutterNote) && (
+                  <span className="rounded-full bg-primary/10 text-primary text-xs px-2 py-0.5">
+                    {[title, claimedViews, cutterNote].filter(Boolean).length}
+                  </span>
                 )}
               </span>
               <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform duration-200 ${showOptional ? "rotate-180" : ""}`} />
@@ -588,6 +598,7 @@ export default function SubmitVideosPage() {
 
             {showOptional && (
               <div className="border-t border-border px-5 py-4 space-y-4">
+                {/* Titel */}
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
                     <label className="text-sm font-medium">Titel / Hook</label>
@@ -613,6 +624,40 @@ export default function SubmitVideosPage() {
                     }
                     maxLength={140}
                     className="w-full rounded-lg border border-input bg-background px-3 py-2.5 text-sm outline-none transition-colors placeholder:text-muted-foreground/50 focus:border-primary focus:ring-1 focus:ring-primary/30"
+                  />
+                </div>
+
+                {/* Aktuelle Views */}
+                <div>
+                  <label className="mb-1.5 block text-sm font-medium">
+                    Aktuelle Views <span className="font-normal text-muted-foreground">(optional)</span>
+                  </label>
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    min={0}
+                    value={claimedViews}
+                    onChange={(e) => setClaimedViews(e.target.value)}
+                    placeholder="z.B. 15000"
+                    className="w-full rounded-lg border border-input bg-background px-3 py-2.5 text-sm outline-none transition-colors placeholder:text-muted-foreground/50 focus:border-primary focus:ring-1 focus:ring-primary/30"
+                  />
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Kannst du später auch in der Videos-Übersicht eintragen oder ändern.
+                  </p>
+                </div>
+
+                {/* Notiz */}
+                <div>
+                  <label className="mb-1.5 block text-sm font-medium">
+                    Notiz <span className="font-normal text-muted-foreground">(optional)</span>
+                  </label>
+                  <textarea
+                    value={cutterNote}
+                    onChange={(e) => setCutterNote(e.target.value)}
+                    placeholder="z.B. 'Views aus Instagram Insights, Screenshot folgt'"
+                    rows={2}
+                    maxLength={500}
+                    className="w-full rounded-lg border border-input bg-background px-3 py-2.5 text-sm outline-none transition-colors placeholder:text-muted-foreground/50 focus:border-primary focus:ring-1 focus:ring-primary/30 resize-none"
                   />
                 </div>
               </div>
