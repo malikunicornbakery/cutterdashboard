@@ -284,10 +284,10 @@ export default function OpsVerificationPage() {
   return (
     <>
       <CutterNav />
-      <main className="mx-auto max-w-5xl p-6 space-y-6">
+      <main className="mx-auto max-w-5xl px-6 py-8 space-y-6">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold">Proof Review Queue</h1>
+            <h1 className="text-xl font-semibold">Proof Review Queue</h1>
             <p className="text-sm text-muted-foreground mt-1">
               Ausstehende Nachweise prüfen und genehmigen
             </p>

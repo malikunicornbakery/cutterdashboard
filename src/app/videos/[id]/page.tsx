@@ -666,7 +666,7 @@ export default function ClipDetailPage() {
   if (loading) return (
     <>
       <CutterNav />
-      <main className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
+      <main className="mx-auto max-w-5xl px-6 py-8">
         <div className="mb-6 h-5 w-32 skeleton rounded" />
         <DetailSkeleton />
       </main>
@@ -683,7 +683,7 @@ export default function ClipDetailPage() {
   return (
     <>
       <CutterNav />
-      <main className="mx-auto max-w-5xl px-4 py-8 sm:px-6 space-y-5">
+      <main className="mx-auto max-w-5xl px-6 py-8 space-y-5">
 
         {/* ── Back ────────────────────────────────────────────── */}
         <Link

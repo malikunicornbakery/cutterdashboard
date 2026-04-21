@@ -225,13 +225,13 @@ export default function AlertsPage() {
   return (
     <>
       <CutterNav />
-      <main className="mx-auto max-w-3xl p-6">
+      <main className="mx-auto max-w-3xl px-6 py-8">
 
         {/* Header */}
         <div className="mb-6">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <h1 className="text-2xl font-bold tracking-tight">Alerts</h1>
+              <h1 className="text-xl font-semibold tracking-tight">Alerts</h1>
               {activeCount > 0 && (
                 <span className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${
                   criticalCount > 0

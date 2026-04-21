@@ -273,7 +273,7 @@ export default function AnalyticsPage() {
   return (
     <>
       <CutterNav />
-      <main className="mx-auto max-w-6xl p-6 space-y-6">
+      <main className="mx-auto max-w-6xl px-6 py-8 space-y-6">
 
         {/* Header */}
         <div className="flex items-center justify-between gap-4 flex-wrap">

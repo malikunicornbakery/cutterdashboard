@@ -82,7 +82,7 @@ function LoginForm() {
         <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/15 border border-primary/20">
           <Scissors className="h-7 w-7 text-primary" />
         </div>
-        <h1 className="text-2xl font-bold tracking-tight">Cutter Dashboard</h1>
+        <h1 className="text-xl font-semibold tracking-tight">Cutter Dashboard</h1>
         <p className="mt-1.5 text-sm text-muted-foreground">
           Dein Workspace für Videos, Views und Rechnungen.
         </p>

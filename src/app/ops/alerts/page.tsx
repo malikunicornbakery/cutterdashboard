@@ -503,13 +503,13 @@ export default function AlertQueuePage() {
   return (
     <>
       <CutterNav />
-      <main className="mx-auto max-w-4xl p-6 space-y-5">
+      <main className="mx-auto max-w-4xl px-6 py-8 space-y-5">
 
         {/* ── Header ── */}
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div>
             <div className="flex items-center gap-3">
-              <h1 className="text-2xl font-bold flex items-center gap-2">
+              <h1 className="text-xl font-semibold flex items-center gap-2">
                 <AlertTriangle className="h-6 w-6" />
                 Alert Queue
               </h1>

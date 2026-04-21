@@ -190,12 +190,12 @@ export default function NotificationsPage() {
   return (
     <>
       <CutterNav />
-      <main className="mx-auto max-w-2xl p-6 space-y-6">
+      <main className="mx-auto max-w-2xl px-6 py-8 space-y-6">
 
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold flex items-center gap-2">
+            <h1 className="text-xl font-semibold flex items-center gap-2">
               <Bell className="h-6 w-6" />
               Benachrichtigungen
             </h1>

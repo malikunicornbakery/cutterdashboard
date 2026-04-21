@@ -97,7 +97,7 @@ export default function InvoiceDetailPage() {
   return (
     <>
       <CutterNav />
-      <main className="mx-auto max-w-4xl p-6">
+      <main className="mx-auto max-w-4xl px-6 py-8">
         <Link
           href="/invoices"
           className="mb-4 flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
@@ -120,7 +120,7 @@ export default function InvoiceDetailPage() {
         {/* Header */}
         <div className="mb-6 flex items-start justify-between">
           <div>
-            <h1 className="text-2xl font-bold">{invoice.invoice_number}</h1>
+            <h1 className="text-xl font-semibold">{invoice.invoice_number}</h1>
             <p className="mt-1 text-sm text-muted-foreground">
               Erstellt am {formatDate(invoice.created_at)} &middot; Zeitraum{" "}
               {formatDate(invoice.period_start)} – {formatDate(invoice.period_end)}

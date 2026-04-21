@@ -111,7 +111,7 @@ export default function CutterProfilePage() {
     return (
       <>
         <CutterNav />
-        <main className="mx-auto max-w-2xl p-6 space-y-4">
+        <main className="mx-auto max-w-2xl px-6 py-8 space-y-4">
           {[...Array(3)].map((_, i) => (
             <div key={i} className="rounded-xl border border-border bg-card p-5">
               <div className="skeleton h-4 w-32 mb-4" />
@@ -136,11 +136,11 @@ export default function CutterProfilePage() {
   return (
     <>
       <CutterNav />
-      <main className="mx-auto max-w-2xl p-6">
+      <main className="mx-auto max-w-2xl px-6 py-8">
 
         {/* Header */}
         <div className="mb-6">
-          <h1 className="text-2xl font-bold tracking-tight">Profil & Rechnungsdaten</h1>
+          <h1 className="text-xl font-semibold tracking-tight">Profil & Rechnungsdaten</h1>
           <p className="mt-0.5 text-sm text-muted-foreground">
             Deine Angaben erscheinen als Absender auf allen Rechnungen.
           </p>

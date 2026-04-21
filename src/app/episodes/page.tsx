@@ -108,11 +108,11 @@ export default function EpisodesPage() {
   return (
     <>
       <CutterNav />
-      <main className="mx-auto max-w-5xl p-6 space-y-6">
+      <main className="mx-auto max-w-5xl px-6 py-8 space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold">Episoden</h1>
+            <h1 className="text-xl font-semibold">Episoden</h1>
             <p className="text-sm text-muted-foreground mt-1">
               Gruppiere deine Videos in Episoden
             </p>

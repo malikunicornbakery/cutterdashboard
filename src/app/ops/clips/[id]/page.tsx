@@ -401,7 +401,7 @@ export default function ClipDetailPage() {
     return (
       <>
         <CutterNav />
-        <main className="mx-auto max-w-4xl p-6">
+        <main className="mx-auto max-w-4xl px-6 py-8">
           <div className="flex items-center justify-center py-20 text-muted-foreground">
             <RefreshCw className="h-5 w-5 animate-spin mr-2" />
             Lade Clip-Details…
@@ -425,7 +425,7 @@ export default function ClipDetailPage() {
   return (
     <>
       <CutterNav />
-      <main className="mx-auto max-w-4xl p-6 space-y-6">
+      <main className="mx-auto max-w-4xl px-6 py-8 space-y-6">
 
         {/* Back */}
         <Link

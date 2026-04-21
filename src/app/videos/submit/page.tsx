@@ -475,7 +475,7 @@ export default function SubmitVideosPage() {
     return (
       <>
         <CutterNav />
-        <main className="mx-auto max-w-lg p-6">
+        <main className="mx-auto max-w-lg px-6 py-8">
           <div className="mt-8 flex flex-col items-center rounded-2xl border border-emerald-500/30 bg-emerald-500/5 p-8 text-center gap-4">
             <CheckCircle2 className="h-14 w-14 text-emerald-400" />
             <div>
@@ -528,14 +528,14 @@ export default function SubmitVideosPage() {
   return (
     <>
       <CutterNav />
-      <main className="mx-auto max-w-lg p-6 space-y-4">
-        <Link href="/videos" className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors">
-          <ArrowLeft className="h-4 w-4" />
+      <main className="mx-auto max-w-lg px-6 py-8 space-y-5">
+        <Link href="/videos" className="flex items-center gap-1 text-xs text-muted-foreground/60 hover:text-foreground transition-colors">
+          <ArrowLeft className="h-3.5 w-3.5" />
           Zurück zu Videos
         </Link>
 
         <div>
-          <h1 className="text-2xl font-bold">Clip einreichen</h1>
+          <h1 className="text-xl font-semibold tracking-tight">Clip einreichen</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             Link einfügen — Plattform und Vorschau werden automatisch erkannt.
           </p>

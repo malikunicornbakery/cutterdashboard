@@ -145,7 +145,7 @@ export default function EpisodePerformancePage() {
     return (
       <>
         <CutterNav />
-        <main className="mx-auto max-w-5xl p-6 space-y-6">
+        <main className="mx-auto max-w-5xl px-6 py-8 space-y-6">
           <div className="skeleton h-4 w-24" />
           <div className="rounded-xl border border-border bg-card p-5 space-y-3">
             <div className="skeleton h-6 w-64" />
@@ -186,7 +186,7 @@ export default function EpisodePerformancePage() {
   return (
     <>
       <CutterNav />
-      <main className="mx-auto max-w-5xl p-6 space-y-6">
+      <main className="mx-auto max-w-5xl px-6 py-8 space-y-6">
         {/* Back */}
         <Link
           href="/ops/clips"

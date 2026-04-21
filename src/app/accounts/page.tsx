@@ -3,12 +3,10 @@
 import { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { CutterNav } from "@/components/cutter-nav";
-import {
-  PLATFORM_ORDER, PLATFORM_DEFS, type Platform,
-} from "@/lib/platforms";
+import { PLATFORM_ORDER, PLATFORM_DEFS, type Platform } from "@/lib/platforms";
 import {
   CheckCircle2, AlertTriangle, Trash2, ExternalLink,
-  RefreshCw, Plus, Wifi, WifiOff, Link2,
+  RefreshCw, Plus, Wifi, WifiOff, Link2, X,
 } from "lucide-react";
 
 interface ConnectedAccount {
@@ -24,27 +22,27 @@ interface ConnectedAccount {
 
 type OAuthConfigured = Record<Platform, boolean>;
 
-// ── Toast ──────────────────────────────────────────────────────
+// ── Toast ──────────────────────────────────────────────────────────
 function Toast({ message, type, onDismiss }: {
   message: string; type: "success" | "error" | "warning"; onDismiss: () => void;
 }) {
   const cls = {
-    success: "bg-emerald-600/90 border-emerald-500/50",
-    error:   "bg-red-600/90 border-red-500/50",
-    warning: "bg-yellow-600/90 border-yellow-500/50",
+    success: "border-emerald-500/30 bg-emerald-500/10 text-emerald-300",
+    error:   "border-red-500/30 bg-red-500/10 text-red-300",
+    warning: "border-yellow-500/30 bg-yellow-500/10 text-yellow-300",
   }[type];
   return (
     <div
       onClick={onDismiss}
-      className={`fixed bottom-5 right-5 z-50 flex items-center gap-2 rounded-xl border px-4 py-3 text-sm font-medium text-white shadow-xl cursor-pointer backdrop-blur-sm ${cls}`}
+      className={`fixed bottom-5 right-5 z-50 flex items-center gap-2.5 rounded-lg border px-4 py-3 text-sm font-medium shadow-2xl shadow-black/30 cursor-pointer backdrop-blur-sm ${cls}`}
     >
-      {type === "success" ? <CheckCircle2 className="h-4 w-4 shrink-0" /> : <AlertTriangle className="h-4 w-4 shrink-0" />}
+      {type === "success" ? <CheckCircle2 className="h-4 w-4 shrink-0" /> : type === "error" ? <X className="h-4 w-4 shrink-0" /> : <AlertTriangle className="h-4 w-4 shrink-0" />}
       {message}
     </div>
   );
 }
 
-// ── Platform Card ──────────────────────────────────────────────
+// ── Platform Card ──────────────────────────────────────────────────
 function PlatformCard({
   platform, account, oauthReady, disconnecting,
   onConnect, onManual, onDisconnect, onReconnect,
@@ -60,7 +58,7 @@ function PlatformCard({
 }) {
   const def = PLATFORM_DEFS[platform];
   const [handleInput, setHandleInput] = useState("");
-  const [showInput, setShowInput] = useState(false);
+  const [showInput,   setShowInput]   = useState(false);
 
   const isConnected = account?.connection_status === "connected" || account?.connection_status === "connected_limited";
   const isManual    = account?.connection_status === "manual";
@@ -68,175 +66,127 @@ function PlatformCard({
   const isError     = account?.connection_status === "error";
   const isLinked    = isConnected || isManual || isExpired || isError;
 
+  // Connection state styling
+  const stateStyles = isConnected
+    ? { border: "border-emerald-500/25", badge: "border-emerald-500/25 bg-emerald-500/10 text-emerald-400", badgeIcon: <Wifi className="h-3 w-3" />, badgeLabel: "Verbunden" }
+    : isManual
+    ? { border: "border-yellow-500/20", badge: "border-yellow-500/25 bg-yellow-500/10 text-yellow-400", badgeIcon: <Link2 className="h-3 w-3" />, badgeLabel: "Manuell" }
+    : isExpired || isError
+    ? { border: "border-orange-500/20", badge: "border-orange-500/25 bg-orange-500/10 text-orange-400", badgeIcon: <WifiOff className="h-3 w-3" />, badgeLabel: "Problem" }
+    : { border: "border-border/50", badge: "border-border/40 bg-muted/10 text-muted-foreground/50", badgeIcon: <WifiOff className="h-3 w-3" />, badgeLabel: "Nicht verbunden" };
+
   return (
-    <div className={`rounded-2xl border bg-card overflow-hidden transition-all ${
-      isConnected ? "border-emerald-500/30" :
-      isManual    ? "border-yellow-500/20" :
-      isExpired || isError ? "border-orange-500/25" :
-      "border-border/60"
-    }`}>
-      {/* ── Header row ── */}
-      <div className="flex items-center gap-3 px-5 py-4">
-        {/* Icon */}
-        <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-lg border ${def.color_text} ${def.color_bg} ${def.color_border}`}>
+    <div className={`rounded-lg border ${stateStyles.border} bg-card overflow-hidden`}>
+      {/* Header */}
+      <div className="flex items-center gap-3 px-4 py-4">
+        <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-base border ${def.color_text} ${def.color_bg} ${def.color_border}`}>
           {def.emoji}
         </div>
-
-        {/* Name + handle */}
         <div className="flex-1 min-w-0">
-          <p className="font-semibold text-sm">{def.label}</p>
+          <p className="font-medium text-sm">{def.label}</p>
           {account?.account_handle ? (
-            <p className="text-xs text-muted-foreground truncate">@{account.account_handle}</p>
+            <p className="text-xs text-muted-foreground truncate mt-0.5">@{account.account_handle}</p>
           ) : (
-            <p className="text-xs text-muted-foreground/50">Nicht verbunden</p>
+            <p className="text-xs text-muted-foreground/40 mt-0.5">Nicht verbunden</p>
           )}
         </div>
-
-        {/* Status pill */}
-        {isConnected && (
-          <span className="flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 text-xs font-medium text-emerald-400">
-            <Wifi className="h-3 w-3" /> Verbunden
-          </span>
-        )}
-        {isManual && (
-          <span className="flex items-center gap-1.5 rounded-full border border-yellow-500/30 bg-yellow-500/10 px-2.5 py-1 text-xs font-medium text-yellow-400">
-            <Link2 className="h-3 w-3" /> Manuell
-          </span>
-        )}
-        {(isExpired || isError) && (
-          <span className="flex items-center gap-1.5 rounded-full border border-orange-500/30 bg-orange-500/10 px-2.5 py-1 text-xs font-medium text-orange-400">
-            <WifiOff className="h-3 w-3" /> Problem
-          </span>
-        )}
-        {!isLinked && (
-          <span className="flex items-center gap-1.5 rounded-full border border-border/50 bg-muted/20 px-2.5 py-1 text-xs font-medium text-muted-foreground/60">
-            <WifiOff className="h-3 w-3" /> Nicht verbunden
-          </span>
-        )}
+        <span className={`flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs font-medium shrink-0 ${stateStyles.badge}`}>
+          {stateStyles.badgeIcon}
+          {stateStyles.badgeLabel}
+        </span>
       </div>
 
-      {/* ── Warnings ── */}
+      {/* Warnings */}
       {isExpired && (
-        <div className="mx-5 mb-3 flex items-center gap-2 rounded-lg border border-orange-500/30 bg-orange-500/10 px-3 py-2 text-xs text-orange-400">
+        <div className="mx-4 mb-3 flex items-center gap-2 rounded-md border border-orange-500/25 bg-orange-500/8 px-3 py-2 text-xs text-orange-400">
           <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
           Token abgelaufen — bitte neu verbinden.
         </div>
       )}
       {isError && account?.sync_error && (
-        <div className="mx-5 mb-3 flex items-center gap-2 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-400">
+        <div className="mx-4 mb-3 flex items-center gap-2 rounded-md border border-red-500/25 bg-red-500/8 px-3 py-2 text-xs text-red-400">
           <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
           {account.sync_error}
         </div>
       )}
       {def.limitation_note && !isLinked && (
-        <div className="mx-5 mb-3 flex items-start gap-2 text-xs text-muted-foreground/60">
-          <AlertTriangle className="h-3 w-3 mt-0.5 shrink-0 text-yellow-500/50" />
+        <div className="mx-4 mb-3 flex items-start gap-2 text-xs text-muted-foreground/50">
+          <AlertTriangle className="h-3 w-3 mt-0.5 shrink-0 text-yellow-500/40" />
           {def.limitation_note}
         </div>
       )}
 
-      {/* ── Handle input (inline) ── */}
+      {/* Handle input */}
       {showInput && (
-        <div className="mx-5 mb-4 flex items-center gap-2">
+        <div className="mx-4 mb-3 flex items-center gap-2">
           <input
             autoFocus
             value={handleInput}
             onChange={(e) => setHandleInput(e.target.value)}
             placeholder={def.placeholder}
-            className="h-9 flex-1 rounded-xl border border-input bg-background px-3 text-sm outline-none focus:border-primary"
+            className="h-8 flex-1 rounded-md border border-input bg-background px-3 text-sm outline-none focus:border-primary transition-colors"
             onKeyDown={(e) => {
-              if (e.key === "Enter" && handleInput.trim()) {
-                onManual(handleInput.trim());
-                setHandleInput("");
-                setShowInput(false);
-              }
+              if (e.key === "Enter" && handleInput.trim()) { onManual(handleInput.trim()); setHandleInput(""); setShowInput(false); }
               if (e.key === "Escape") setShowInput(false);
             }}
           />
           <button
             onClick={() => { if (handleInput.trim()) { onManual(handleInput.trim()); setHandleInput(""); setShowInput(false); } }}
             disabled={!handleInput.trim()}
-            className="h-9 rounded-xl bg-primary px-3 text-xs font-medium text-primary-foreground disabled:opacity-40"
+            className="h-8 rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground disabled:opacity-40"
           >
             Speichern
           </button>
           <button
             onClick={() => setShowInput(false)}
-            className="h-9 rounded-xl border border-border px-3 text-xs text-muted-foreground hover:text-foreground"
+            className="h-8 rounded-md border border-border px-2.5 text-xs text-muted-foreground hover:text-foreground"
           >
             ✕
           </button>
         </div>
       )}
 
-      {/* ── Action buttons ── */}
+      {/* Actions */}
       {!showInput && (
-        <div className="flex items-center gap-2 px-5 pb-4 flex-wrap">
-          {/* Not linked → connect or manual */}
+        <div className="flex items-center gap-2 px-4 pb-4 flex-wrap">
           {!isLinked && (
             oauthReady ? (
-              <button
-                onClick={onConnect}
-                className="flex items-center gap-1.5 rounded-xl bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 transition-opacity"
-              >
-                <Plus className="h-4 w-4" />
-                {def.connect_label}
+              <button onClick={onConnect} className="flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:opacity-90 transition-opacity">
+                <Plus className="h-3.5 w-3.5" /> {def.connect_label}
               </button>
             ) : (
-              <button
-                onClick={() => setShowInput(true)}
-                className="flex items-center gap-1.5 rounded-xl border border-border bg-card px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-              >
-                <Plus className="h-4 w-4" />
-                Handle eintragen
+              <button onClick={() => setShowInput(true)} className="flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-accent transition-colors">
+                <Plus className="h-3.5 w-3.5" /> Handle eintragen
               </button>
             )
           )}
 
-          {/* Manual → upgrade to OAuth if available */}
           {isManual && oauthReady && (
-            <button
-              onClick={onConnect}
-              className="flex items-center gap-1.5 rounded-xl bg-primary/15 border border-primary/30 px-4 py-2 text-sm font-medium text-primary hover:bg-primary/25 transition-colors"
-            >
-              <RefreshCw className="h-4 w-4" />
-              Per OAuth verbinden
+            <button onClick={onConnect} className="flex items-center gap-1.5 rounded-md border border-primary/25 bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary hover:bg-primary/15 transition-colors">
+              <RefreshCw className="h-3.5 w-3.5" /> Per OAuth verbinden
             </button>
           )}
 
-          {/* Expired / error → reconnect */}
           {(isExpired || isError) && (
-            <button
-              onClick={onReconnect}
-              className="flex items-center gap-1.5 rounded-xl bg-orange-500/15 border border-orange-500/30 px-4 py-2 text-sm font-medium text-orange-400 hover:bg-orange-500/25 transition-colors"
-            >
-              <RefreshCw className="h-4 w-4" />
-              Neu verbinden
+            <button onClick={onReconnect} className="flex items-center gap-1.5 rounded-md border border-orange-500/25 bg-orange-500/10 px-3 py-1.5 text-xs font-medium text-orange-400 hover:bg-orange-500/15 transition-colors">
+              <RefreshCw className="h-3.5 w-3.5" /> Neu verbinden
             </button>
           )}
 
-          {/* Profile link */}
           {account?.account_handle && (
-            <a
-              href={`${def.url_prefix}${account.account_handle}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-1.5 rounded-xl border border-border px-3 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-            >
-              <ExternalLink className="h-4 w-4" />
-              Profil
+            <a href={`${def.url_prefix}${account.account_handle}`} target="_blank" rel="noopener noreferrer"
+              className="flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground hover:bg-accent transition-colors">
+              <ExternalLink className="h-3.5 w-3.5" /> Profil
             </a>
           )}
 
-          {/* DELETE — prominent, always visible if linked */}
           {isLinked && (
             <button
               onClick={onDisconnect}
               disabled={disconnecting}
-              className="ml-auto flex items-center gap-1.5 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-2 text-sm font-medium text-red-400 hover:bg-red-500/20 hover:border-red-500/50 transition-colors disabled:opacity-50"
+              className="ml-auto flex items-center gap-1.5 rounded-md border border-red-500/25 bg-red-500/8 px-3 py-1.5 text-xs font-medium text-red-400 hover:bg-red-500/15 hover:border-red-500/40 transition-colors disabled:opacity-40"
             >
-              <Trash2 className="h-4 w-4" />
-              Löschen
+              <Trash2 className="h-3.5 w-3.5" /> Löschen
             </button>
           )}
         </div>
@@ -245,7 +195,7 @@ function PlatformCard({
   );
 }
 
-// ── Page ───────────────────────────────────────────────────────
+// ── Page ───────────────────────────────────────────────────────────
 function AccountsPageInner() {
   const router       = useRouter();
   const searchParams = useSearchParams();
@@ -294,8 +244,7 @@ function AccountsPageInner() {
 
   async function handleManual(platform: Platform, handle: string) {
     const res = await fetch("/api/accounts", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
+      method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ platform, account_handle: handle }),
     });
     if (res.ok) { showToast("Handle gespeichert.", "success"); loadAccounts(); }
@@ -311,8 +260,8 @@ function AccountsPageInner() {
     else showToast("Fehler beim Löschen.", "error");
   }
 
-  const connectedCount = accounts.filter(
-    (a) => a.connection_status === "connected" || a.connection_status === "connected_limited" || a.connection_status === "manual"
+  const connectedCount = accounts.filter((a) =>
+    a.connection_status === "connected" || a.connection_status === "connected_limited" || a.connection_status === "manual"
   ).length;
 
   return (
@@ -320,9 +269,11 @@ function AccountsPageInner() {
       <CutterNav />
       {toast && <Toast message={toast.message} type={toast.type} onDismiss={() => setToast(null)} />}
 
-      <main className="mx-auto max-w-2xl p-6">
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold tracking-tight">Plattform-Verbindungen</h1>
+      <main className="mx-auto max-w-2xl px-6 py-8 space-y-6">
+
+        {/* ── Page header ──────────────────────────────────────── */}
+        <div>
+          <h1 className="text-xl font-semibold tracking-tight">Plattform-Verbindungen</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             {connectedCount > 0
               ? `${connectedCount} von 4 Plattformen verbunden`
@@ -330,6 +281,7 @@ function AccountsPageInner() {
           </p>
         </div>
 
+        {/* ── Platform cards ────────────────────────────────────── */}
         <div className="space-y-3">
           {PLATFORM_ORDER.map((platform) => {
             const account = accounts.find((a) => a.platform === platform) ?? null;
@@ -348,6 +300,12 @@ function AccountsPageInner() {
             );
           })}
         </div>
+
+        {/* ── Info note ─────────────────────────────────────────── */}
+        <p className="text-xs text-muted-foreground/50 text-center pb-2">
+          Verbundene Konten ermöglichen automatisches View-Tracking. Manuelle Handles werden regelmäßig gescrapt.
+        </p>
+
       </main>
     </>
   );

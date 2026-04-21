@@ -199,11 +199,11 @@ function ClipsPageInner() {
   return (
     <>
       <CutterNav />
-      <main className="mx-auto max-w-7xl p-6 space-y-6">
+      <main className="mx-auto max-w-7xl px-6 py-8 space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold">Clips</h1>
+            <h1 className="text-xl font-semibold">Clips</h1>
             <p className="text-sm text-muted-foreground mt-1">
               Alle Clips mit Verifikationsstatus
             </p>

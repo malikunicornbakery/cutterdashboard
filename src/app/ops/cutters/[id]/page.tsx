@@ -308,7 +308,7 @@ export default function CutterProfilePage() {
     return (
       <>
         <CutterNav />
-        <main className="mx-auto max-w-5xl p-6 space-y-6">
+        <main className="mx-auto max-w-5xl px-6 py-8 space-y-6">
           <div className="skeleton h-4 w-24" />
           <div className="rounded-xl border border-border bg-card p-5">
             <div className="flex items-center gap-4">
@@ -341,7 +341,7 @@ export default function CutterProfilePage() {
   return (
     <>
       <CutterNav />
-      <main className="mx-auto max-w-5xl p-6 space-y-6">
+      <main className="mx-auto max-w-5xl px-6 py-8 space-y-6">
 
         {/* Back */}
         <Link

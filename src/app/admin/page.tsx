@@ -228,8 +228,8 @@ export default function CutterAdminPage() {
   return (
     <>
       <CutterNav />
-      <main className="mx-auto max-w-5xl p-6">
-        <h1 className="mb-6 text-2xl font-bold">Admin</h1>
+      <main className="mx-auto max-w-5xl px-6 py-8">
+        <h1 className="mb-6 text-xl font-semibold">Admin</h1>
 
         {/* Cutter Management */}
         <section className="mb-8">

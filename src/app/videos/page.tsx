@@ -155,12 +155,12 @@ export default function VideosPage() {
   return (
     <>
       <CutterNav />
-      <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
+      <main className="mx-auto max-w-6xl px-6 py-8">
 
         {/* ── Page header ───────────────────────────────────── */}
         <div className="mb-7 flex items-start justify-between gap-4">
           <div>
-            <h1 className="text-xl font-bold tracking-tight">Videos</h1>
+            <h1 className="text-xl font-semibold tracking-tight">Videos</h1>
             <p className="mt-0.5 text-sm text-muted-foreground">
               {loading ? "Lädt…" : `${videos.length} ${videos.length === 1 ? "Clip" : "Clips"}`}
               {needsAttention > 0 && (
