@@ -24,7 +24,30 @@ export const ACCEPTED_MIME_TYPES = [
 // Maximum upload size enforced on the backend (must match frontend warning)
 const MAX_FILE_BYTES = 4.5 * 1024 * 1024; // 4.5 MB — Vercel hobby function body limit
 
-// ── Schema migration (idempotent) ────────────────────────────────
+// ── Schema migrations (idempotent) ───────────────────────────────
+
+/**
+ * Ensure cutter_videos has all proof-related columns.
+ * Runs ALTER TABLE only if the column is missing — SQLite ignores the error otherwise.
+ */
+async function ensureCutterVideosProofColumns(db: DbClient) {
+  const migrations = [
+    `ALTER TABLE cutter_videos ADD COLUMN proof_url              TEXT`,
+    `ALTER TABLE cutter_videos ADD COLUMN proof_uploaded_at      TEXT`,
+    `ALTER TABLE cutter_videos ADD COLUMN proof_status           TEXT`,
+    `ALTER TABLE cutter_videos ADD COLUMN proof_cutter_note      TEXT`,
+    `ALTER TABLE cutter_videos ADD COLUMN proof_rejection_reason TEXT`,
+    `ALTER TABLE cutter_videos ADD COLUMN proof_reviewer_id      TEXT`,
+    `ALTER TABLE cutter_videos ADD COLUMN proof_reviewer_name    TEXT`,
+    `ALTER TABLE cutter_videos ADD COLUMN proof_reviewed_at      TEXT`,
+    `ALTER TABLE cutter_videos ADD COLUMN proof_requested_at     TEXT`,
+    `ALTER TABLE cutter_videos ADD COLUMN proof_requested_by     TEXT`,
+  ];
+  for (const sql of migrations) {
+    try { await db.execute({ sql, args: [] }); } catch { /* column already exists */ }
+  }
+}
+
 async function ensureProofFilesTable(db: DbClient) {
   await db.execute({
     sql: `CREATE TABLE IF NOT EXISTS cutter_proof_files (
@@ -264,6 +287,10 @@ export async function POST(
   }
 
   // ── 8. Persist proof record ────────────────────────────────────
+  // Ensure all proof columns exist on cutter_videos before writing to them.
+  // This is a no-op on fully-migrated DBs; protects against missing columns on older schemas.
+  await ensureCutterVideosProofColumns(db);
+
   try {
     await db.execute({
       sql: `INSERT INTO cutter_proof_files

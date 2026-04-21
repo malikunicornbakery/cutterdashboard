@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireCutterAuth, isCutter } from '@/lib/cutter/middleware';
 import { ensureDb } from '@/lib/db';
-import { calculateDiscrepancy, type VerificationStatus } from '@/lib/verification/discrepancy';
+import { calculateDiscrepancy } from '@/lib/verification/discrepancy';
+import type { VerificationSource } from '@/lib/verification/types';
 
 export async function GET(
   request: NextRequest,
@@ -120,42 +121,69 @@ export async function PATCH(
   if (!isCutter(auth)) return auth;
 
   const { id } = await params;
-  const body = await request.json();
-  const { claimed_views, episode_id } = body;
+
+  // ── Parse body ────────────────────────────────────────────────
+  let body: Record<string, unknown>;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: 'Ungültiger Anfrage-Body (kein gültiges JSON).' }, { status: 400 });
+  }
+
+  const { claimed_views, episode_id } = body as { claimed_views?: number | null; episode_id?: string | null };
 
   if (claimed_views !== undefined && claimed_views !== null && (typeof claimed_views !== 'number' || claimed_views < 0)) {
     return NextResponse.json({ error: 'Ungültiger Wert für claimed_views' }, { status: 400 });
   }
 
-  const db = await ensureDb();
+  // ── DB: load video ────────────────────────────────────────────
+  let db: Awaited<ReturnType<typeof ensureDb>>;
+  try {
+    db = await ensureDb();
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.error('[PATCH /api/videos/:id] DB connect failed:', msg);
+    return NextResponse.json({ error: 'Datenbankverbindung fehlgeschlagen.' }, { status: 503 });
+  }
 
-  const videoResult = await db.execute({
-    sql: `SELECT id, platform, current_views, verification_status FROM cutter_videos WHERE id = ? AND cutter_id = ?`,
-    args: [id, auth.id],
-  });
-  const video = videoResult.rows[0] as unknown as {
-    id: string; platform: string; current_views: number; verification_status: string;
-  } | undefined;
+  let video: { id: string; platform: string; current_views: number; verification_source: string | null } | undefined;
+  try {
+    const videoResult = await db.execute({
+      sql: `SELECT id, platform, current_views, verification_source FROM cutter_videos WHERE id = ? AND cutter_id = ?`,
+      args: [id, auth.id],
+    });
+    video = videoResult.rows[0] as typeof video;
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.error('[PATCH /api/videos/:id] SELECT failed:', { id, cutterId: auth.id, error: msg });
+    return NextResponse.json({ error: `Datenbankfehler beim Laden des Videos: ${msg}` }, { status: 500 });
+  }
 
   if (!video) {
     return NextResponse.json({ error: 'Video nicht gefunden' }, { status: 404 });
   }
 
-  // Handle episode_id update only (no claimed_views change)
+  // ── Handle episode_id-only update ────────────────────────────
   if (episode_id !== undefined && claimed_views === undefined) {
-    await db.execute({
-      sql: `UPDATE cutter_videos SET episode_id = ? WHERE id = ?`,
-      args: [episode_id ?? null, id],
-    });
+    try {
+      await db.execute({
+        sql: `UPDATE cutter_videos SET episode_id = ? WHERE id = ?`,
+        args: [episode_id ?? null, id],
+      });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.error('[PATCH /api/videos/:id] episode_id UPDATE failed:', { id, error: msg });
+      return NextResponse.json({ error: `Datenbankfehler beim Speichern: ${msg}` }, { status: 500 });
+    }
     return NextResponse.json({ success: true });
   }
 
-  // Recalculate discrepancy with new claim
-  const verificationStatus = video.verification_status as VerificationStatus;
+  // ── Recalculate discrepancy with new claim ────────────────────
+  const verificationSource = (video.verification_source ?? 'unavailable') as VerificationSource;
   const { status: discrepancyStatus, percent: discrepancyPercent } = calculateDiscrepancy(
     video.current_views,
     claimed_views ?? null,
-    verificationStatus
+    verificationSource
   );
 
   const setClauses = [
@@ -176,10 +204,18 @@ export async function PATCH(
 
   args.push(id);
 
-  await db.execute({
-    sql: `UPDATE cutter_videos SET ${setClauses.join(', ')} WHERE id = ?`,
-    args,
-  });
+  try {
+    await db.execute({
+      sql: `UPDATE cutter_videos SET ${setClauses.join(', ')} WHERE id = ?`,
+      args,
+    });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.error('[PATCH /api/videos/:id] claimed_views UPDATE failed:', {
+      id, cutterId: auth.id, claimed_views, setClauses, error: msg,
+    });
+    return NextResponse.json({ error: `Datenbankfehler beim Speichern: ${msg}` }, { status: 500 });
+  }
 
   return NextResponse.json({ success: true, discrepancy_status: discrepancyStatus, discrepancy_percent: discrepancyPercent });
 }
