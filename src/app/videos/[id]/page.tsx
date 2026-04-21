@@ -499,7 +499,7 @@ function UploadZone({
           </div>
           <div className="text-center">
             <p className="text-sm font-medium">Screenshot hochladen</p>
-            <p className="text-xs text-muted-foreground mt-0.5">JPEG, PNG, WebP · max. 4,5 MB</p>
+            <p className="text-xs text-muted-foreground mt-0.5">JPEG, PNG, WebP · max. 8 MB</p>
           </div>
         </>
       )}
