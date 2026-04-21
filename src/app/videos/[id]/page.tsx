@@ -145,40 +145,132 @@ function StatTile({ label, value, accent }: { label: string; value: string; acce
   );
 }
 
+// ── Client-side validation (mirrors backend rules) ────────────────
+const CLIENT_MAX_BYTES = 4.5 * 1024 * 1024; // 4.5 MB — Vercel function body limit
+
+function validateFile(file: File): string | null {
+  // Normalise MIME type: some OS/browsers send "image/jpg" or empty string
+  const rawType = (file.type || "").toLowerCase().trim();
+  let effectiveType = rawType === "image/jpg" ? "image/jpeg" : rawType;
+  if (!effectiveType) {
+    const name = file.name.toLowerCase();
+    if (name.endsWith(".jpg") || name.endsWith(".jpeg")) effectiveType = "image/jpeg";
+    else if (name.endsWith(".png")) effectiveType = "image/png";
+    else if (name.endsWith(".webp")) effectiveType = "image/webp";
+    else if (name.endsWith(".heic") || name.endsWith(".heif")) effectiveType = "image/heic";
+    else if (name.endsWith(".pdf")) effectiveType = "application/pdf";
+  }
+  if (!effectiveType.startsWith("image/") && effectiveType !== "application/pdf") {
+    return `Ungültiger Dateityp („${file.type || file.name.split(".").pop() ?? "?"})". Bitte ein Bild hochladen (JPEG, PNG, WebP).`;
+  }
+  if (file.size > CLIENT_MAX_BYTES) {
+    const mb = (file.size / 1024 / 1024).toFixed(1);
+    return `Datei ist zu groß (${mb} MB). Maximal 4,5 MB erlaubt.`;
+  }
+  if (file.size === 0) {
+    return "Die Datei ist leer. Bitte wähle eine gültige Bilddatei.";
+  }
+  return null; // valid
+}
+
+// Parse a fetch Response into a human-readable error string
+async function parseUploadError(res: Response): Promise<string> {
+  const ct = res.headers.get("content-type") ?? "";
+  if (ct.includes("application/json")) {
+    try {
+      const data = await res.json();
+      if (data.error) return data.error as string;
+    } catch { /* fall through */ }
+  }
+  // Non-JSON responses (Vercel-level errors, HTML pages)
+  switch (res.status) {
+    case 400: return "Ungültige Anfrage — bitte erneut versuchen.";
+    case 401: return "Sitzung abgelaufen — bitte neu anmelden.";
+    case 403: return "Keine Berechtigung für diesen Clip.";
+    case 409: return "Für diesen Clip existiert bereits ein Nachweis. Bitte zuerst löschen.";
+    case 413: return "Datei ist zu groß für den Server (max. 4,5 MB).";
+    case 415: return "Dateityp wird nicht unterstützt. Bitte JPEG, PNG oder WebP hochladen.";
+    case 503: return "Server vorübergehend nicht erreichbar — bitte in einer Minute erneut versuchen.";
+    default:  return `Server-Fehler (${res.status}) — bitte erneut versuchen.`;
+  }
+}
+
 // ── Proof Section ─────────────────────────────────────────────────
 function ProofSection({ video, onRefresh }: { video: VideoDetail; onRefresh: () => void }) {
-  const [uploading,    setUploading]    = useState(false);
-  const [deleting,     setDeleting]     = useState(false);
-  const [err,          setErr]          = useState<string | null>(null);
-  const [showViewer,   setShowViewer]   = useState(false);
+  const [uploading,  setUploading]  = useState(false);
+  const [uploadOk,   setUploadOk]   = useState(false);
+  const [deleting,   setDeleting]   = useState(false);
+  const [err,        setErr]        = useState<string | null>(null);
+  const [showViewer, setShowViewer] = useState(false);
 
   const status     = video.proof_status;
   const isApproved = status === "proof_approved";
   const hasProof   = !!video.proof_url;
 
+  function showError(msg: string) {
+    setErr(msg);
+    setTimeout(() => setErr(null), 12000);
+  }
+
   async function upload(file: File) {
+    // 1. Client-side validation first — instant feedback, no round-trip
+    const validationError = validateFile(file);
+    if (validationError) { showError(validationError); return; }
+
     setUploading(true);
     setErr(null);
+    setUploadOk(false);
+
+    // 2. Build and send FormData
     const fd = new FormData();
     fd.append("file", file);
-    const res = await fetch(`/api/videos/${video.id}/proof`, { method: "POST", body: fd });
-    setUploading(false);
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({}));
-      setErr(data.error || "Fehler beim Hochladen");
-      setTimeout(() => setErr(null), 8000);
-    } else {
-      onRefresh();
+
+    let res: Response;
+    try {
+      res = await fetch(`/api/videos/${video.id}/proof`, { method: "POST", body: fd });
+    } catch (networkErr) {
+      setUploading(false);
+      showError("Netzwerkfehler — bitte Verbindung prüfen und erneut versuchen.");
+      return;
     }
+
+    setUploading(false);
+
+    if (!res.ok) {
+      const msg = await parseUploadError(res);
+      showError(msg);
+      return;
+    }
+
+    // 3. Success
+    setUploadOk(true);
+    setTimeout(() => setUploadOk(false), 4000);
+    onRefresh();
   }
 
   async function deleteProof() {
     if (!confirm("Nachweis wirklich löschen?")) return;
     setDeleting(true);
-    await fetch(`/api/videos/${video.id}/proof`, { method: "DELETE" });
+    try {
+      const res = await fetch(`/api/videos/${video.id}/proof`, { method: "DELETE" });
+      if (!res.ok) {
+        const msg = await parseUploadError(res);
+        showError(msg);
+      }
+    } catch {
+      showError("Netzwerkfehler beim Löschen — bitte erneut versuchen.");
+    }
     setDeleting(false);
     onRefresh();
   }
+
+  // ── Error banner (shared by all states) ───────────────────────
+  const errBanner = err && (
+    <div className="flex items-start gap-2.5 rounded-xl border border-red-500/20 bg-red-500/5 px-3.5 py-3">
+      <AlertTriangle className="h-4 w-4 text-red-400 mt-0.5 shrink-0" />
+      <p className="text-sm text-red-300 leading-snug">{err}</p>
+    </div>
+  );
 
   // ── Image viewer modal ─────────────────────────────────────────
   const viewerModal = showViewer && video.proof_url && (
@@ -202,7 +294,7 @@ function ProofSection({ video, onRefresh }: { video: VideoDetail; onRefresh: () 
     </div>
   );
 
-  // Proof requested — no proof yet but admin asked
+  // ── State: proof requested, no file yet ───────────────────────
   if (status === "proof_requested" && !hasProof) return (
     <div className="space-y-4">
       {viewerModal}
@@ -218,12 +310,12 @@ function ProofSection({ video, onRefresh }: { video: VideoDetail; onRefresh: () 
           )}
         </div>
       </div>
-      <UploadZone onFile={upload} uploading={uploading} accent />
-      {err && <p className="text-xs text-red-400">{err}</p>}
+      <UploadZone onFile={upload} uploading={uploading} uploadOk={uploadOk} accent />
+      {errBanner}
     </div>
   );
 
-  // Approved — show proof, no delete
+  // ── State: approved ───────────────────────────────────────────
   if (isApproved && hasProof) return (
     <div className="space-y-3">
       {viewerModal}
@@ -246,7 +338,7 @@ function ProofSection({ video, onRefresh }: { video: VideoDetail; onRefresh: () 
     </div>
   );
 
-  // Rejected — show proof + rejection reason + delete + re-upload
+  // ── State: rejected ───────────────────────────────────────────
   if (status === "proof_rejected" && hasProof) return (
     <div className="space-y-3">
       {viewerModal}
@@ -276,11 +368,11 @@ function ProofSection({ video, onRefresh }: { video: VideoDetail; onRefresh: () 
           Löschen
         </button>
       </div>
-      {err && <p className="text-xs text-red-400">{err}</p>}
+      {errBanner}
     </div>
   );
 
-  // Under review — show proof + status + delete option
+  // ── State: under review ───────────────────────────────────────
   if ((status === "proof_submitted" || status === "proof_under_review") && hasProof) return (
     <div className="space-y-3">
       {viewerModal}
@@ -302,19 +394,20 @@ function ProofSection({ video, onRefresh }: { video: VideoDetail; onRefresh: () 
           onClick={deleteProof}
           disabled={deleting}
           className="flex items-center justify-center gap-1.5 rounded-xl border border-border px-4 py-2.5 text-sm text-muted-foreground hover:border-red-500/30 hover:text-red-400 hover:bg-red-500/5 disabled:opacity-50 transition-colors"
+          title="Nachweis löschen"
         >
           {deleting ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
         </button>
       </div>
-      {err && <p className="text-xs text-red-400">{err}</p>}
+      {errBanner}
     </div>
   );
 
-  // No proof — upload zone
+  // ── State: no proof yet ───────────────────────────────────────
   return (
     <div className="space-y-3">
-      <UploadZone onFile={upload} uploading={uploading} />
-      {err && <p className="text-xs text-red-400">{err}</p>}
+      <UploadZone onFile={upload} uploading={uploading} uploadOk={uploadOk} />
+      {errBanner}
     </div>
   );
 }
@@ -348,40 +441,58 @@ function ProofImage({ url, onClick }: { url: string; onClick: () => void }) {
   );
 }
 
-function UploadZone({ onFile, uploading, accent = false }: { onFile: (f: File) => void; uploading: boolean; accent?: boolean }) {
+function UploadZone({
+  onFile, uploading, uploadOk, accent = false,
+}: {
+  onFile: (f: File) => void;
+  uploading: boolean;
+  uploadOk: boolean;
+  accent?: boolean;
+}) {
   const [drag, setDrag] = useState(false);
+
+  function handleFiles(files: FileList | null) {
+    if (files?.[0]) onFile(files[0]);
+  }
 
   function handleDrop(e: React.DragEvent) {
     e.preventDefault();
     setDrag(false);
-    const file = e.dataTransfer.files[0];
-    if (file) onFile(file);
+    handleFiles(e.dataTransfer.files);
   }
 
+  const baseClass = `flex w-full cursor-pointer flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed py-9 transition-all select-none`;
+  const stateClass =
+    drag        ? "border-primary bg-primary/10 scale-[0.99]" :
+    uploading   ? "border-primary/30 bg-primary/5 cursor-wait" :
+    uploadOk    ? "border-emerald-500/40 bg-emerald-500/5" :
+    accent      ? "border-orange-500/30 bg-orange-500/5 hover:bg-orange-500/10" :
+                  "border-border bg-muted/10 hover:border-primary/30 hover:bg-accent/20";
+
   return (
-    <label
-      className={`flex w-full cursor-pointer flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed py-9 transition-all ${
-        drag
-          ? "border-primary bg-primary/10 scale-[0.99]"
-          : uploading
-          ? "border-primary/30 bg-primary/5"
-          : accent
-          ? "border-orange-500/30 bg-orange-500/5 hover:bg-orange-500/10"
-          : "border-border bg-muted/10 hover:border-primary/30 hover:bg-accent/20"
-      }`}
-      onDragOver={e => { e.preventDefault(); setDrag(true); }}
+    <div
+      className={`${baseClass} ${stateClass}`}
+      onDragOver={e => { e.preventDefault(); if (!uploading) setDrag(true); }}
       onDragLeave={() => setDrag(false)}
-      onDrop={handleDrop}
+      onDrop={e => { if (!uploading) handleDrop(e); }}
+      onClick={() => { if (!uploading && !uploadOk) (document.getElementById("proof-file-input") as HTMLInputElement)?.click(); }}
     >
       {uploading ? (
         <>
           <RefreshCw className="h-6 w-6 animate-spin text-primary" />
-          <span className="text-sm text-muted-foreground">Wird hochgeladen…</span>
+          <p className="text-sm text-muted-foreground">Wird hochgeladen…</p>
+        </>
+      ) : uploadOk ? (
+        <>
+          <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-500/20 border border-emerald-500/30">
+            <Check className="h-5 w-5 text-emerald-400" />
+          </div>
+          <p className="text-sm font-medium text-emerald-400">✓ Nachweis hochgeladen!</p>
         </>
       ) : drag ? (
         <>
           <Upload className="h-6 w-6 text-primary" />
-          <span className="text-sm text-primary font-medium">Hier ablegen</span>
+          <p className="text-sm text-primary font-medium">Hier ablegen</p>
         </>
       ) : (
         <>
@@ -390,18 +501,19 @@ function UploadZone({ onFile, uploading, accent = false }: { onFile: (f: File) =
           </div>
           <div className="text-center">
             <p className="text-sm font-medium">Screenshot hochladen</p>
-            <p className="text-xs text-muted-foreground mt-0.5">JPEG, PNG, WebP, HEIC · max. 20 MB</p>
+            <p className="text-xs text-muted-foreground mt-0.5">JPEG, PNG, WebP · max. 4,5 MB</p>
           </div>
         </>
       )}
       <input
+        id="proof-file-input"
         type="file"
-        accept="image/*"
+        accept="image/jpeg,image/jpg,image/png,image/webp,image/heic,image/heif"
         className="sr-only"
         disabled={uploading}
-        onChange={e => { if (e.target.files?.[0]) onFile(e.target.files[0]); e.target.value = ""; }}
+        onChange={e => { handleFiles(e.target.files); e.target.value = ""; }}
       />
-    </label>
+    </div>
   );
 }
 
